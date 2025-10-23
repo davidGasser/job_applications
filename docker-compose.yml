@@ -1,0 +1,38 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=jobs
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    ports:
+      - '5433:5432'
+
+  app:
+    build: .
+    restart: always
+    ports:
+      - '5000:5000'
+    volumes:
+      - .:/app
+    depends_on:
+      - db
+      - selenium
+    environment:
+      - DATABASE_URL=postgresql://user:password@db:5432/jobs
+      - FLASK_APP=src/main.py
+      - FLASK_DEBUG=1
+    command: python src/main.py
+
+  selenium:
+    image: selenium/standalone-chrome:latest
+    shm_size: 2g
+    restart: always
+    ports:
+      - '4444:4444'
+
+volumes:
+  postgres_data:

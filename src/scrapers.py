@@ -20,7 +20,6 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('linkedin_scraper.log'),
         logging.StreamHandler(sys.stdout)
     ]
 )
@@ -252,7 +251,10 @@ class LinkedInScraper:
         opts.add_experimental_option('excludeSwitches', ['enable-automation'])
         opts.add_experimental_option('useAutomationExtension', False)
         opts.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
-        self.driver = webdriver.Chrome(options=opts)
+        self.driver = webdriver.Remote(
+            command_executor='http://selenium:4444/wd/hub',
+            options=opts
+        )
         
         try:
             self._load_cookies()
@@ -285,11 +287,9 @@ class LinkedInScraper:
             prev_len = len(df)
             df.drop_duplicates(subset=["company", "title"], inplace=True)
             logger.info(f"{prev_len-len(df)} duplicate instances was/were detected and deleted.")
-            df.to_json("scraped_jobs.json", orient="records", index=False, indent=2)
             
             logger.info("=" * 60)
             logger.info(f"Scraping complete! Total jobs scraped: {self.total_jobs_scraped}")
-            logger.info(f"Results saved to scraped_jobs.json")
             logger.info("=" * 60)
             
             return df
@@ -301,16 +301,3 @@ class LinkedInScraper:
         finally:
             self.driver.quit()
             logger.info("Browser closed")
-
-
-if __name__ == '__main__':
-    scraper = LinkedInScraper(
-        "ai",
-        ["munich"],
-        distance_in_km=8,
-        date_posted="Past Month",
-        exp_level=["Entry level", "internship"],
-        job_type=["part-time", "full-time"], 
-        pages=1
-    )
-    scraper.scrape_jobs()

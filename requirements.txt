@@ -2,3 +2,12 @@ pandas
 selenium
 beautifulsoup4
 pdf2image
+opencv-python
+numpy
+Flask
+SQLAlchemy
+psycopg2-binary
+Flask-SQLAlchemy
+Flask-SocketIO
+gevent
+gevent-websocket

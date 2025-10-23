@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+
+{% block title %}Scrape Jobs - {{ super() }}{% endblock %}
+
+{% block head %}
+    <style>
+        form { display: flex; flex-direction: column; gap: 1.5em; }
+        label { font-weight: bold; }
+        input[type="text"], input[type="number"], select {
+            background-color: var(--background-color);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            padding: 0.75em;
+            border-radius: 6px;
+            width: 100%;
+            box-sizing: border-box;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        input[type="text"]:focus, input[type="number"]:focus, select:focus {
+            outline: none;
+            border-color: var(--link-color);
+            box-shadow: 0 0 0 3px rgba(13, 183, 237, 0.3);
+        }
+        .checkbox-group { display: flex; flex-wrap: wrap; gap: 1em; }
+        .checkbox-group label { font-weight: normal; }
+        button {
+            padding: 0.7em;
+            background-color: var(--link-color);
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: filter 0.2s;
+        }
+        button:hover { filter: brightness(1.1); }
+        button:disabled { background-color: #ccc; }
+        #log-container { margin-top: 2em; }
+        #log {
+            background-color: #010409;
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            padding: 1em;
+            height: 300px;
+            overflow-y: scroll;
+            white-space: pre-wrap;
+            font-family: monospace;
+            border-radius: 6px;
+        }
+        #status { margin-top: 1em; }
+        #status a { color: var(--link-color); }
+    </style>
+{% endblock %}
+
+{% block content %}
+    <h1>Configure LinkedIn Scraper</h1>
+    <form id="scrape-form">
+        <div>
+            <label for="keywords">Keywords</label>
+            <input type="text" id="keywords" name="keywords" value="ai" required>
+        </div>
+
+        <div>
+            <label for="locations">Locations (comma-separated)</label>
+            <input type="text" id="locations" name="locations" value="munich" required>
+        </div>
+
+        <div>
+            <label for="distance">Distance (km)</label>
+            <select id="distance" name="distance">
+                <option value="">Any</option>
+                {% for km in distance_map %}
+                <option value="{{ km }}">{{ km }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div>
+            <label for="date_posted">Date Posted</label>
+            <select id="date_posted" name="date_posted">
+                <option value="">Any</option>
+                {% for date in date_map %}
+                <option value="{{ date }}">{{ date }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div>
+            <label>Experience Level</label>
+            <div class="checkbox-group">
+                {% for level in exp_level_map %}
+                <label><input type="checkbox" name="exp_level" value="{{ level }}"> {{ level.replace(' level','') | title }}</label>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div>
+            <label>Job Type</label>
+            <div class="checkbox-group">
+                {% for type in job_type_map %}
+                <label><input type="checkbox" name="job_type" value="{{ type }}"> {{ type | title }}</label>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div>
+            <label for="pages">Pages to Scrape</label>
+            <input type="number" id="pages" name="pages" value="1" min="1" required>
+        </div>
+
+        <button type="submit" id="submit-button">Start Scraping</button>
+    </form>
+
+    <div id="log-container">
+        <h2>Scraper Log</h2>
+        <pre id="log">Awaiting scrape to start...</pre>
+        <div id="status"></div>
+    </div>
+{% endblock %}
+
+{% block scripts %}
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', (event) => {
+            const socket = io.connect(location.protocol + '//' + document.domain + ':' + location.port);
+            const form = document.getElementById('scrape-form');
+            const log = document.getElementById('log');
+            const status = document.getElementById('status');
+            const submitButton = document.getElementById('submit-button');
+
+            socket.on('connect', () => {
+                console.log('Websocket connected!');
+            });
+
+            form.addEventListener('submit', (e) => {
+                e.preventDefault();
+                log.textContent = 'Starting scrape...\n';
+                status.innerHTML = '';
+                submitButton.disabled = true;
+
+                const formData = new FormData(form);
+                const data = {};
+                // Handle regular inputs and select
+                for (let [key, value] of formData.entries()) {
+                    if (data[key]) {
+                        if (!Array.isArray(data[key])) {
+                            data[key] = [data[key]];
+                        }
+                        data[key].push(value);
+                    } else {
+                        data[key] = value;
+                    }
+                }
+                // Ensure checkbox fields are arrays even if only one is selected
+                const checkboxNames = ['exp_level', 'job_type'];
+                checkboxNames.forEach(name => {
+                    if (data[name] && !Array.isArray(data[name])) {
+                        data[name] = [data[name]];
+                    }
+                });
+
+                socket.emit('start_scrape', { data: data });
+            });
+
+            socket.on('log_message', (msg) => {
+                log.textContent += msg.data + '\n';
+                log.scrollTop = log.scrollHeight; // Auto-scroll
+            });
+
+            socket.on('scrape_finished', (msg) => {
+                log.textContent += '\n--- ' + msg.data + ' ---\n';
+                status.innerHTML = `<a href="/">View Results</a>`;
+                submitButton.disabled = false;
+                log.scrollTop = log.scrollHeight;
+            });
+
+            socket.on('scrape_error', (msg) => {
+                log.textContent += '\n--- ERROR: ' + msg.data + ' ---\n';
+                submitButton.disabled = false;
+                log.scrollTop = log.scrollHeight;
+            });
+        });
+    </script>
+{% endblock %}

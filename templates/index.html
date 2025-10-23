@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+
+{% block title %}Job Listings - {{ super() }}{% endblock %}
+
+{% block head %}
+    <style>
+        .job-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 1rem;
+        }
+        .job {
+            background-color: var(--header-background);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+        }
+        .job h2 {
+            margin-top: 0;
+            font-size: 1.2rem;
+            color: var(--text-color);
+        }
+        .job .company {
+            color: #8b949e;
+            margin-bottom: 1rem;
+        }
+        .job .search-criteria {
+            font-size: 0.8rem;
+            color: #8b949e;
+            margin-bottom: 1rem;
+        }
+        .job-details textarea {
+            width: 100%;
+            min-height: 80px;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 0.5rem;
+            margin-top: 0.5rem;
+            box-sizing: border-box;
+        }
+        .job-details h4 {
+            margin-top: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+        .save-feedback {
+            font-size: 0.8rem;
+            color: var(--link-color);
+            margin-left: 1rem;
+            opacity: 0;
+            transition: opacity 0.5s;
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+    <h1>Scraped Job Listings</h1>
+    <div id="jobs-container" class="job-grid">
+        {% for job in jobs %}
+            <div class="job" data-job-id="{{ job.id }}">
+                <h2>{{ job.title }}</h2>
+                <div class="search-criteria">
+                    <span>Found with: <strong>{{ job.search_criteria.keywords }}</strong> in <strong>{{ job.search_criteria.locations }}</strong></span>
+                </div>
+                <p class="company">{{ job.company }}</p>
+                <p class="scraped-date">Scraped: {{ job.scraped_at.strftime('%Y-%m-%d %H:%M') }} UTC</p>
+                <div class="job-footer">
+                    <a href="{{ job.application_link }}" target="_blank" class="btn btn-primary">Apply</a>
+                    <button class="btn btn-secondary btn-expand">Show Details</button>
+                </div>
+                <div class="job-description">
+                    <h4>Description</h4>
+                    {{ job.description | nl2br | safe }}
+
+                    <div class="job-details">
+                        <h4>Notes</h4>
+                        <textarea class="job-notes">{{ job.notes or '' }}</textarea>
+                        <h4>Contact Info</h4>
+                        <textarea class="job-contact">{{ job.contact_info or '' }}</textarea>
+                        <h4>Positives</h4>
+                        <textarea class="job-positives">{{ job.positives or '' }}</textarea>
+                        <h4>Negatives</h4>
+                        <textarea class="job-negatives">{{ job.negatives or '' }}</textarea>
+                        <button class="btn btn-primary btn-save-details">Save Details</button>
+                        <span class="save-feedback">Saved!</span>
+                    </div>
+                </div>
+            </div>
+        {% else %}
+            <p>No jobs found. Try scraping first.</p>
+        {% endfor %}
+    </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const jobContainer = document.getElementById('jobs-container');
+        jobContainer.addEventListener('click', (e) => {
+            // --- Expand/Collapse Button --- 
+            if (e.target.classList.contains('btn-expand')) {
+                const button = e.target;
+                const description = button.closest('.job').querySelector('.job-description');
+                const isHidden = description.style.display === 'none' || description.style.display === '';
+
+                if (isHidden) {
+                    description.style.display = 'block';
+                    button.textContent = 'Hide Details';
+                } else {
+                    description.style.display = 'none';
+                    button.textContent = 'Show Details';
+                }
+            }
+
+            // --- Save Details Button --- 
+            if (e.target.classList.contains('btn-save-details')) {
+                const button = e.target;
+                const jobTile = button.closest('.job');
+                const jobId = jobTile.dataset.jobId;
+                const feedbackSpan = jobTile.querySelector('.save-feedback');
+
+                const data = {
+                    notes: jobTile.querySelector('.job-notes').value,
+                    contact_info: jobTile.querySelector('.job-contact').value,
+                    positives: jobTile.querySelector('.job-positives').value,
+                    negatives: jobTile.querySelector('.job-negatives').value
+                };
+
+                fetch(`/job/${jobId}/details`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data),
+                })
+                .then(response => response.json())
+                .then(result => {
+                    if (result.status === 'success') {
+                        feedbackSpan.style.opacity = 1;
+                        setTimeout(() => { feedbackSpan.style.opacity = 0; }, 2000);
+                    } else {
+                        alert('Error saving details: ' + result.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An unexpected error occurred.');
+                });
+            }
+        });
+    });
+</script>
+{% endblock %}
+

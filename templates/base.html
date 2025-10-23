@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Job Scraper{% endblock %}</title>
+    <style>
+        :root {
+            --background-color: #0d1117;
+            --text-color: #c9d1d9;
+            --header-background: #161b22;
+            --link-color: #0db7ed;
+            --border-color: #0666d4;
+            --active-tab-background: #010409;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            margin: 0;
+            background-color: var(--background-color);
+            color: var(--text-color);
+        }
+        .navbar {
+            background-color: var(--header-background);
+            border-bottom: 1px solid var(--border-color);
+            padding: 0 2rem;
+            display: flex;
+            align-items: flex-end; /* Align items to the bottom */
+            gap: 1.5rem; /* Space between logo and nav links */
+        }
+        .navbar .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--link-color);
+            text-decoration: none;
+            padding: 1rem 0; /* Add padding to align with tabs */
+        }
+        .navbar .nav-links {
+            display: flex;
+            gap: 0.5rem; /* Space between tab links */
+        }
+        .navbar .nav-links a {
+            color: var(--text-color);
+            text-decoration: none;
+            font-size: 1.1rem; /* Increased font size */
+            padding: 1rem 1.2rem; /* Increased padding */
+            transition: color 0.2s, background-color 0.2s, border-color 0.2s;
+            border-radius: 10px 10px 0 0; /* More rounded top corners */
+            margin-bottom: -1px; /* Overlap with bottom border of navbar */
+        }
+        .navbar .nav-links a:not(.active-nav-link):hover {
+            color: var(--link-color);
+            background-color: rgba(13, 183, 237, 0.1); /* Subtle hover background */
+        }
+        .navbar .nav-links a.active-nav-link {
+            color: var(--link-color);
+            background-color: var(--active-tab-background);
+            border: 1px solid var(--border-color);
+            border-bottom-color: var(--active-tab-background); /* Hide bottom border to blend with content */
+        }
+        .content {
+            padding: 2rem;
+            max-width: 1200px;
+            margin: auto;
+        }
+    </style>
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <nav class="navbar">
+        <a href="{{ url_for('index') }}" class="logo">Job Scraper</a>
+        <div class="nav-links">
+            <a href="{{ url_for('index') }}" class="{% if active_page == 'index' %}active-nav-link{% endif %}">Jobs</a>
+            <a href="{{ url_for('scrape') }}" class="{% if active_page == 'scrape' %}active-nav-link{% endif %}">Scraper</a>
+            <a href="{{ url_for('kanban') }}" class="{% if active_page == 'kanban' %}active-nav-link{% endif %}">Kanban</a>
+        </div>
+    </nav>
+
+    <main class="content">
+        {% block content %}{% endblock %}
+    </main>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>
