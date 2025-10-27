@@ -1,0 +1,331 @@
+{% extends "base_fullwidth.html" %}
+
+{% block title %}Calendar - {{ super() }}{% endblock %}
+
+{% block head %}
+<link href='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css' rel='stylesheet' />
+<style>
+    #calendar-container {
+        padding: 2rem;
+        max-width: 1400px;
+        margin: 0 auto;
+    }
+
+    .calendar-header {
+        margin-bottom: 2rem;
+    }
+
+    .calendar-header h1 {
+        margin: 0;
+        font-size: 2rem;
+        font-weight: 700;
+        color: var(--text-color);
+    }
+
+    #calendar {
+        background-color: var(--card-background);
+        border-radius: 12px;
+        padding: 2rem;
+        box-shadow: var(--shadow-md);
+        border: 1px solid var(--border-color);
+    }
+
+    /* FullCalendar Customization */
+    .fc {
+        font-family: var(--font-family);
+    }
+
+    .fc .fc-toolbar-title {
+        color: var(--text-color);
+        font-size: 1.5rem;
+        font-weight: 600;
+    }
+
+    .fc .fc-button {
+        background-color: var(--primary-color);
+        border-color: var(--primary-color);
+        color: white;
+        padding: 0.5rem 1rem;
+        font-weight: 500;
+        text-transform: capitalize;
+        border-radius: 8px;
+        transition: all 0.2s;
+    }
+
+    .fc .fc-button:hover {
+        background-color: var(--primary-hover);
+        border-color: var(--primary-hover);
+    }
+
+    .fc .fc-button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .fc .fc-button-primary:not(:disabled):active,
+    .fc .fc-button-primary:not(:disabled).fc-button-active {
+        background-color: var(--primary-hover);
+        border-color: var(--primary-hover);
+    }
+
+    .fc .fc-daygrid-day-number {
+        color: var(--text-color);
+        font-weight: 500;
+        padding: 0.5rem;
+    }
+
+    .fc .fc-col-header-cell {
+        background-color: var(--background-color);
+        color: var(--text-color);
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 0.8rem;
+        letter-spacing: 0.05em;
+        padding: 1rem 0.5rem;
+    }
+
+    .fc .fc-daygrid-day {
+        background-color: white;
+    }
+
+    .fc .fc-daygrid-day:hover {
+        background-color: var(--primary-light);
+    }
+
+    .fc .fc-daygrid-day.fc-day-today {
+        background-color: var(--primary-light) !important;
+    }
+
+    .fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-number {
+        background-color: var(--primary-color);
+        color: white;
+        border-radius: 50%;
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .fc .fc-event {
+        background-color: var(--primary-color);
+        border-color: var(--primary-color);
+        border-radius: 6px;
+        padding: 0.25rem 0.5rem;
+        font-size: 0.85rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+        margin-bottom: 2px;
+    }
+
+    .fc .fc-event:hover {
+        background-color: var(--primary-hover);
+        transform: translateY(-1px);
+        box-shadow: var(--shadow-sm);
+    }
+
+    .fc .fc-event-title {
+        font-weight: 500;
+    }
+
+    .fc .fc-daygrid-event-dot {
+        border-color: white;
+    }
+
+    /* Event Details Modal */
+    .event-modal-content {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .event-detail-row {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+
+    .event-detail-label {
+        font-weight: 600;
+        color: var(--text-secondary);
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .event-detail-value {
+        font-size: 0.95rem;
+        color: var(--text-color);
+    }
+
+    .event-detail-value a {
+        color: var(--primary-color);
+        text-decoration: underline;
+    }
+
+    .event-detail-value a:hover {
+        color: var(--primary-hover);
+    }
+
+    .fc .fc-more-link {
+        color: var(--primary-color);
+        font-weight: 600;
+    }
+
+    .fc .fc-more-link:hover {
+        color: var(--primary-hover);
+    }
+
+    /* Empty state */
+    .calendar-empty-state {
+        text-align: center;
+        padding: 3rem;
+        color: var(--text-secondary);
+        background-color: var(--background-color);
+        border-radius: 8px;
+        margin-top: 1rem;
+    }
+
+    .calendar-empty-state h3 {
+        font-size: 1.1rem;
+        margin-bottom: 0.5rem;
+        color: var(--text-color);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+    <div id="calendar-container">
+        <div class="calendar-header">
+            <h1>Job Application Timeline</h1>
+            <p style="color: var(--text-secondary); margin-top: 0.5rem;">Track important dates, deadlines, and interviews</p>
+        </div>
+        <div id='calendar'></div>
+    </div>
+
+    <!-- Event Details Modal -->
+    <div id="event-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="event-modal-title">Event Details</h2>
+                <button class="close-button" type="button">&times;</button>
+            </div>
+            <div class="event-modal-content">
+                <div class="event-detail-row">
+                    <span class="event-detail-label">Job</span>
+                    <span class="event-detail-value" id="event-job-title"></span>
+                </div>
+                <div class="event-detail-row">
+                    <span class="event-detail-label">Event</span>
+                    <span class="event-detail-value" id="event-title"></span>
+                </div>
+                <div class="event-detail-row">
+                    <span class="event-detail-label">Date & Time</span>
+                    <span class="event-detail-value" id="event-date"></span>
+                </div>
+                <div class="event-detail-row" id="event-description-row" style="display: none;">
+                    <span class="event-detail-label">Description</span>
+                    <span class="event-detail-value" id="event-description"></span>
+                </div>
+                <div class="event-detail-row" id="event-job-link-row" style="display: none;">
+                    <span class="event-detail-label">Job Details</span>
+                    <span class="event-detail-value">
+                        <a href="/kanban" id="event-job-link">View on Kanban Board →</a>
+                    </span>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn" id="close-event-modal">Close</button>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block scripts %}
+<script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js'></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const calendarEl = document.getElementById('calendar');
+    const eventModal = document.getElementById('event-modal');
+    const closeModalBtn = eventModal.querySelector('.close-button');
+    const closeEventModalBtn = document.getElementById('close-event-modal');
+
+    const calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'dayGridMonth',
+        headerToolbar: {
+            left: 'prev,next today',
+            center: 'title',
+            right: 'dayGridMonth,dayGridWeek,dayGridDay'
+        },
+        events: '/job_dates',
+        eventClick: function(info) {
+            // Populate modal with event details
+            const event = info.event;
+            const props = event.extendedProps;
+
+            document.getElementById('event-modal-title').textContent = event.title;
+            document.getElementById('event-title').textContent = event.title;
+            document.getElementById('event-job-title').textContent = props.job_title || 'N/A';
+
+            // Format date
+            const eventDate = new Date(event.start);
+            document.getElementById('event-date').textContent = eventDate.toLocaleString('en-US', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+
+            // Show/hide description
+            const descriptionRow = document.getElementById('event-description-row');
+            const descriptionValue = document.getElementById('event-description');
+            if (props.description) {
+                descriptionValue.textContent = props.description;
+                descriptionRow.style.display = 'flex';
+            } else {
+                descriptionRow.style.display = 'none';
+            }
+
+            // Show/hide job link
+            const jobLinkRow = document.getElementById('event-job-link-row');
+            if (props.job_id) {
+                jobLinkRow.style.display = 'flex';
+            } else {
+                jobLinkRow.style.display = 'none';
+            }
+
+            // Show modal
+            eventModal.style.display = 'block';
+        },
+        height: 'auto',
+        aspectRatio: 1.8,
+        eventColor: '#4f46e5',
+        eventDisplay: 'block',
+        dayMaxEvents: 3,
+        moreLinkText: function(num) {
+            return '+' + num + ' more';
+        }
+    });
+
+    calendar.render();
+
+    // Close modal handlers
+    closeModalBtn.addEventListener('click', () => {
+        eventModal.style.display = 'none';
+    });
+
+    closeEventModalBtn.addEventListener('click', () => {
+        eventModal.style.display = 'none';
+    });
+
+    window.addEventListener('click', (e) => {
+        if (e.target === eventModal) {
+            eventModal.style.display = 'none';
+        }
+    });
+});
+</script>
+{% endblock %}

@@ -4,71 +4,319 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Job Scraper{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
         :root {
-            --background-color: #0d1117;
-            --text-color: #c9d1d9;
-            --header-background: #161b22;
-            --link-color: #0db7ed;
-            --border-color: #30363d;
-            --active-tab-background: #010409;
+            --background-color: #f8f9fa;
+            --text-color: #1a1a1a;
+            --text-secondary: #6c757d;
+            --header-background: #ffffff;
+            --card-background: #ffffff;
+            --primary-color: #4f46e5;
+            --primary-hover: #4338ca;
+            --primary-light: #e0e7ff;
+            --border-color: #e5e7eb;
+            --success-color: #10b981;
+            --danger-color: #ef4444;
+            --warning-color: #f59e0b;
+            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            --font-family: 'Inter', sans-serif;
         }
+
+        * {
+            box-sizing: border-box;
+        }
+
         html, body {
             height: 100%;
-            overflow: hidden; /* Prevent double scrollbars */
+            overflow: hidden;
         }
+
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            font-family: var(--font-family);
             margin: 0;
             background-color: var(--background-color);
             color: var(--text-color);
             display: flex;
             flex-direction: column;
+            line-height: 1.6;
         }
+
+        /* Form Elements */
+        input, textarea, select {
+            font-family: var(--font-family);
+            font-size: 0.95rem;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            padding: 0.65rem 1rem;
+            background-color: white;
+            color: var(--text-color);
+            transition: all 0.2s;
+            width: 100%;
+        }
+
+        input:focus, textarea:focus, select:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px var(--primary-light);
+        }
+
+        /* Button Styles */
+        button, .btn {
+            font-family: var(--font-family);
+            font-size: 0.95rem;
+            font-weight: 500;
+            cursor: pointer;
+            border-radius: 8px;
+            border: none;
+            padding: 0.65rem 1.25rem;
+            background-color: var(--primary-color);
+            color: white;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        button:hover, .btn:hover {
+            background-color: var(--primary-hover);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+
+        button:active, .btn:active {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background-color: #6b7280;
+        }
+
+        .btn-secondary:hover {
+            background-color: #4b5563;
+        }
+
+        .btn-outline {
+            background-color: transparent;
+            border: 2px solid var(--primary-color);
+            color: var(--primary-color);
+        }
+
+        .btn-outline:hover {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .btn-danger {
+            background-color: var(--danger-color);
+        }
+
+        .btn-danger:hover {
+            background-color: #dc2626;
+        }
+
+        .btn-sm {
+            padding: 0.4rem 0.85rem;
+            font-size: 0.875rem;
+        }
+
+        /* Navigation */
         .navbar {
             background-color: var(--header-background);
-            border-bottom: 1px solid var(--border-color);
+            border-bottom: 2px solid var(--border-color);
             padding: 0 2rem;
             display: flex;
             align-items: flex-end;
-            gap: 1.5rem;
+            gap: 2rem;
             flex-shrink: 0;
+            box-shadow: var(--shadow-sm);
         }
+
         .navbar .logo {
             font-size: 1.5rem;
-            font-weight: bold;
-            color: var(--link-color);
+            font-weight: 700;
+            color: var(--primary-color);
             text-decoration: none;
             padding: 1rem 0;
-        }
-        .navbar .nav-links {
             display: flex;
+            align-items: center;
             gap: 0.5rem;
         }
+
+        .navbar .nav-links {
+            display: flex;
+            gap: 0.25rem;
+        }
+
         .navbar .nav-links a {
-            color: var(--text-color);
+            color: var(--text-secondary);
             text-decoration: none;
-            font-size: 1.1rem;
-            padding: 1rem 1.2rem;
-            transition: color 0.2s, background-color 0.2s, border-color 0.2s;
-            border-radius: 10px 10px 0 0;
-            margin-bottom: -1px;
+            font-size: 0.95rem;
+            font-weight: 500;
+            padding: 1rem 1.25rem;
+            transition: all 0.2s;
+            border-radius: 8px 8px 0 0;
+            margin-bottom: -2px;
+            position: relative;
         }
-        .navbar .nav-links a:not(.active-nav-link):hover {
-            color: var(--link-color);
-            background-color: rgba(13, 183, 237, 0.1);
+
+        .navbar .nav-links a:hover {
+            color: var(--primary-color);
+            background-color: var(--primary-light);
         }
+
         .navbar .nav-links a.active-nav-link {
-            color: var(--link-color);
-            background-color: var(--active-tab-background);
-            border: 1px solid var(--border-color);
-            border-bottom-color: var(--active-tab-background);
+            color: var(--primary-color);
+            background-color: var(--background-color);
+            font-weight: 600;
         }
+
+        .navbar .nav-links a.active-nav-link::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background-color: var(--primary-color);
+        }
+
+        /* Content Area */
         .content-fullwidth {
             flex-grow: 1;
             display: flex;
             flex-direction: column;
-            overflow: hidden; /* Let the content handle its own scrolling */
+            overflow: hidden;
+        }
+
+        h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+            color: var(--text-color);
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--text-color);
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+            animation: fadeIn 0.2s;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 3% auto;
+            padding: 2rem;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 700px;
+            max-height: 85vh;
+            overflow-y: auto;
+            box-shadow: var(--shadow-lg);
+            animation: slideUp 0.3s;
+        }
+
+        @keyframes slideUp {
+            from {
+                transform: translateY(50px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .close-button {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            color: var(--text-secondary);
+            cursor: pointer;
+            padding: 0;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+
+        .close-button:hover {
+            background-color: var(--background-color);
+            color: var(--text-color);
+            transform: none;
+            box-shadow: none;
+        }
+
+        .form-group {
+            margin-bottom: 1.25rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: var(--text-color);
+            font-size: 0.9rem;
+        }
+
+        .card {
+            background-color: var(--card-background);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: var(--shadow-sm);
+            transition: all 0.2s;
+        }
+
+        .card:hover {
+            box-shadow: var(--shadow-md);
         }
     </style>
     {% block head %}{% endblock %}
@@ -80,6 +328,7 @@
             <a href="{{ url_for('index') }}" class="{% if active_page == 'index' %}active-nav-link{% endif %}">Jobs</a>
             <a href="{{ url_for('scrape') }}" class="{% if active_page == 'scrape' %}active-nav-link{% endif %}">Scraper</a>
             <a href="{{ url_for('kanban') }}" class="{% if active_page == 'kanban' %}active-nav-link{% endif %}">Kanban</a>
+            <a href="{{ url_for('calendar') }}" class="{% if active_page == 'calendar' %}active-nav-link{% endif %}">Calendar</a>
         </div>
     </nav>
 

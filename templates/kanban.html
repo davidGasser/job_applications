@@ -5,35 +5,70 @@
 {% block head %}
 <style>
     .kanban-container {
-        padding: 1rem;
+        padding: 2rem;
         display: flex;
         flex-direction: column;
         height: 100%;
         box-sizing: border-box;
     }
+
+    .kanban-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+    }
+
+    .kanban-header h1 {
+        margin: 0;
+    }
+
     .kanban-board {
         display: flex;
-        gap: 1rem;
+        gap: 1.5rem;
         flex-grow: 1;
         overflow-x: auto;
+        padding-bottom: 1rem;
     }
+
     .kanban-column {
         flex: 1;
         min-width: 320px;
-        max-width: 320px;
-        background-color: var(--header-background);
-        border-radius: 6px;
+        max-width: 400px;
+        background-color: var(--background-color);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
         display: flex;
         flex-direction: column;
     }
-    .kanban-column h2 {
-        margin: 0;
-        font-size: 1.2rem;
-        color: var(--text-color);
-        padding: 1rem;
-        border-bottom: 1px solid var(--border-color);
+
+    .kanban-column-header {
+        padding: 1.25rem 1.5rem;
+        border-bottom: 2px solid var(--border-color);
         flex-shrink: 0;
+        background-color: var(--card-background);
+        border-radius: 12px 12px 0 0;
     }
+
+    .kanban-column-header h2 {
+        margin: 0;
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: var(--text-color);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .job-count {
+        background-color: var(--primary-light);
+        color: var(--primary-color);
+        padding: 0.25rem 0.6rem;
+        border-radius: 12px;
+        font-size: 0.8rem;
+        font-weight: 600;
+    }
+
     .kanban-cards {
         display: flex;
         flex-direction: column;
@@ -41,49 +76,648 @@
         padding: 1rem;
         overflow-y: auto;
         flex-grow: 1;
+        min-height: 200px;
     }
+
     .kanban-card {
-        background-color: var(--background-color);
+        background-color: var(--card-background);
         border: 1px solid var(--border-color);
-        border-radius: 6px;
-        padding: 1rem;
+        border-radius: 10px;
+        padding: 1.25rem;
         cursor: grab;
+        transition: all 0.2s;
+        box-shadow: var(--shadow-sm);
     }
+
+    .kanban-card:hover {
+        box-shadow: var(--shadow-md);
+        border-color: var(--primary-color);
+        transform: translateY(-2px);
+    }
+
     .kanban-card:active {
         cursor: grabbing;
-        background-color: #010409;
     }
+
+    .kanban-card.dragging {
+        opacity: 0.5;
+        transform: rotate(2deg);
+    }
+
     .kanban-card h3 {
         margin: 0 0 0.5rem 0;
         font-size: 1rem;
+        font-weight: 600;
+        color: var(--text-color);
+        line-height: 1.3;
     }
+
     .kanban-card p {
         margin: 0;
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+    }
+
+    /* Modal Styling */
+    .modal-content {
+        max-width: 800px;
+    }
+
+    .modal-section {
+        margin-bottom: 1.5rem;
+    }
+
+    .modal-section h3 {
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin: 0 0 1rem 0;
+        color: var(--text-color);
+        padding-bottom: 0.5rem;
+        border-bottom: 2px solid var(--border-color);
+    }
+
+    .info-row {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .info-label {
+        font-weight: 600;
+        color: var(--text-secondary);
+        min-width: 120px;
+        font-size: 0.875rem;
+    }
+
+    .info-value {
+        flex: 1;
         font-size: 0.9rem;
-        color: #8b949e;
+    }
+
+    .info-value input {
+        width: 100%;
+    }
+
+    .contact-list, .date-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .contact-item, .date-item {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.75rem;
+        background-color: var(--background-color);
+        border-radius: 8px;
+        border: 1px solid var(--border-color);
+    }
+
+    .contact-item-content, .date-item-content {
+        flex: 1;
+    }
+
+    .contact-item-content strong, .date-item-content strong {
+        display: block;
+        font-size: 0.9rem;
+        margin-bottom: 0.25rem;
+    }
+
+    .contact-item-content span, .date-item-content span {
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+    }
+
+    .item-actions {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .add-item-form {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.75rem;
+        padding: 1rem;
+        background-color: var(--background-color);
+        border-radius: 8px;
+        border: 1px solid var(--border-color);
+        margin-top: 0.75rem;
+    }
+
+    .add-item-form.full-width {
+        grid-template-columns: 1fr;
+    }
+
+    .add-item-form input,
+    .add-item-form select,
+    .add-item-form textarea {
+        width: 100%;
+    }
+
+    .add-item-form .full-width-field {
+        grid-column: 1 / -1;
+    }
+
+    .modal-actions {
+        display: flex;
+        gap: 0.75rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid var(--border-color);
+        margin-top: 1.5rem;
+    }
+
+    .modal-actions button {
+        flex: 1;
+    }
+
+    .status-badge {
+        display: inline-block;
+        padding: 0.35rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 600;
+    }
+
+    .status-new { background-color: #dbeafe; color: #1e40af; }
+    .status-interested { background-color: #fef3c7; color: #92400e; }
+    .status-applied { background-color: #ddd6fe; color: #5b21b6; }
+    .status-interviewing { background-color: #d1fae5; color: #065f46; }
+    .status-offer { background-color: #bbf7d0; color: #14532d; }
+    .status-rejected { background-color: #f3f4f6; color: #4b5563; }
+
+    .empty-column {
+        text-align: center;
+        padding: 2rem 1rem;
+        color: var(--text-secondary);
+        font-size: 0.875rem;
+    }
+
+    textarea {
+        min-height: 100px;
+        resize: vertical;
     }
 </style>
 {% endblock %}
 
 {% block content %}
-    <div class="kanban-container">
-        <h1>Job Application Kanban Board</h1>
-        <div class="kanban-board">
-            {% for status in statuses %}
-            <div class="kanban-column" data-status="{{ status }}">
-                <h2>{{ status }}</h2>
-                <div class="kanban-cards">
-                    {% for job in jobs %}
-                        {% if job.status == status %}
-                        <div class="kanban-card" draggable="true" data-job-id="{{ job.id }}">
-                            <h3>{{ job.title }}</h3>
-                            <p>{{ job.company }}</p>
-                        </div>
-                        {% endif %}
-                    {% endfor %}
-                </div>
+<div class="kanban-container">
+    <div class="kanban-header">
+        <h1>Job Application Pipeline</h1>
+        <button id="add-job-button">+ Add Job</button>
+    </div>
+
+    <div class="kanban-board">
+        {% for status in statuses %}
+        <div class="kanban-column" data-status="{{ status }}">
+            <div class="kanban-column-header">
+                <h2>
+                    {{ status }}
+                    <span class="job-count">{{ jobs | selectattr('status', 'equalto', status) | list | length }}</span>
+                </h2>
             </div>
-            {% endfor %}
+            <div class="kanban-cards">
+                {% set column_jobs = jobs | selectattr('status', 'equalto', status) | list %}
+                {% if column_jobs %}
+                    {% for job in column_jobs %}
+                    <div class="kanban-card" draggable="true" data-job-id="{{ job.id }}">
+                        <h3>{{ job.title }}</h3>
+                        <p>{{ job.company }}</p>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="empty-column">No jobs in this stage</div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Job Details Modal -->
+<div id="job-details-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 id="modal-job-title"></h2>
+            <button class="close-button" type="button">&times;</button>
+        </div>
+
+        <div class="modal-section">
+            <div class="info-row">
+                <span class="info-label">Company:</span>
+                <span class="info-value" id="modal-job-company"></span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Location:</span>
+                <span class="info-value" id="modal-job-location"></span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Status:</span>
+                <span class="info-value" id="modal-job-status"></span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Application Link:</span>
+                <span class="info-value"><a href="#" id="modal-job-link" target="_blank">Open Link →</a></span>
+            </div>
+        </div>
+
+        <div class="modal-section">
+            <h3>Description</h3>
+            <div style="background-color: var(--background-color); padding: 1rem; border-radius: 8px; max-height: 200px; overflow-y: auto; font-size: 0.875rem;" id="modal-job-description"></div>
+        </div>
+
+        <div class="modal-section">
+            <h3>Notes</h3>
+            <textarea id="modal-job-notes" placeholder="Add notes about this job..."></textarea>
+        </div>
+
+        <div class="modal-section">
+            <h3>Contacts</h3>
+            <div id="contact-list" class="contact-list"></div>
+            <div class="add-item-form">
+                <input type="text" id="new-contact-name" placeholder="Contact Name">
+                <select id="new-contact-type">
+                    <option value="email">Email</option>
+                    <option value="phone">Phone</option>
+                    <option value="linkedin">LinkedIn</option>
+                    <option value="other">Other</option>
+                </select>
+                <input type="text" id="new-contact-value" placeholder="Contact Value" class="full-width-field">
+                <button type="button" id="add-contact-button" class="full-width-field">+ Add Contact</button>
+            </div>
+        </div>
+
+        <div class="modal-section">
+            <h3>Important Dates</h3>
+            <div id="dates-list" class="date-list"></div>
+            <div class="add-item-form full-width">
+                <select id="new-date-category">
+                    <option value="deadline">Deadline</option>
+                    <option value="interview">Interview</option>
+                    <option value="followup">Follow-up</option>
+                    <option value="other">Other</option>
+                </select>
+                <input type="datetime-local" id="new-date-input">
+                <input type="text" id="new-date-title" placeholder="Title (optional)">
+                <textarea id="new-date-description" placeholder="Description (optional)" style="min-height: 60px;"></textarea>
+                <button type="button" id="add-date-button">+ Add Date</button>
+            </div>
+        </div>
+
+        <div class="modal-actions">
+            <button type="button" class="btn-secondary" id="close-modal-button">Close</button>
+            <button type="button" class="btn-danger" id="delete-job-button">Delete Job</button>
+            <button type="button" id="save-job-button">Save Changes</button>
         </div>
     </div>
+</div>
+
+<!-- Add Job Modal -->
+<div id="add-job-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Add New Job</h2>
+            <button class="close-button" type="button">&times;</button>
+        </div>
+        <form id="add-job-form">
+            <div class="form-group">
+                <label for="new-job-title">Job Title *</label>
+                <input type="text" id="new-job-title" placeholder="e.g., Senior Software Engineer" required>
+            </div>
+            <div class="form-group">
+                <label for="new-job-company">Company</label>
+                <input type="text" id="new-job-company" placeholder="e.g., Tech Corp">
+            </div>
+            <div class="form-group">
+                <label for="new-job-location">Location</label>
+                <input type="text" id="new-job-location" placeholder="e.g., San Francisco, CA">
+            </div>
+            <div class="modal-actions" style="margin-top: 1rem; padding-top: 1rem;">
+                <button type="button" class="btn-secondary" onclick="document.getElementById('add-job-modal').style.display='none'">Cancel</button>
+                <button type="submit">Create Job</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    let currentJobId = null;
+    let editingDateId = null;
+
+    const detailsModal = document.getElementById('job-details-modal');
+    const addJobModal = document.getElementById('add-job-modal');
+    const addJobButton = document.getElementById('add-job-button');
+    const addJobForm = document.getElementById('add-job-form');
+
+    // Add Job Modal
+    addJobButton.addEventListener('click', () => {
+        addJobModal.style.display = 'block';
+    });
+
+    addJobForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const title = document.getElementById('new-job-title').value;
+        const company = document.getElementById('new-job-company').value;
+        const location = document.getElementById('new-job-location').value;
+
+        fetch('/job', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title, company, location })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.id) {
+                location.reload(); // Reload to show new job
+            } else {
+                alert('Error creating job');
+            }
+        });
+    });
+
+    // Kanban Card Event Listeners
+    function addCardEventListeners(card) {
+        card.addEventListener('dblclick', () => {
+            const jobId = card.dataset.jobId;
+            currentJobId = jobId;
+            loadJobDetails(jobId);
+        });
+
+        card.addEventListener('dragstart', () => {
+            card.classList.add('dragging');
+        });
+
+        card.addEventListener('dragend', () => {
+            card.classList.remove('dragging');
+        });
+    }
+
+    // Load Job Details
+    function loadJobDetails(jobId) {
+        fetch(`/job/${jobId}/details`)
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('modal-job-title').textContent = data.title;
+                document.getElementById('modal-job-company').textContent = data.company || 'N/A';
+                document.getElementById('modal-job-location').textContent = data.location || 'N/A';
+                document.getElementById('modal-job-status').innerHTML = `<span class="status-badge status-${data.status.toLowerCase().replace(' ', '-')}">${data.status}</span>`;
+                document.getElementById('modal-job-link').href = data.application_link;
+                document.getElementById('modal-job-description').innerHTML = data.description?.replace(/\n/g, '<br>') || 'No description available';
+                document.getElementById('modal-job-notes').value = data.notes || '';
+
+                // Render contacts
+                const contactList = document.getElementById('contact-list');
+                contactList.innerHTML = '';
+                if (data.contacts && data.contacts.length > 0) {
+                    data.contacts.forEach(contact => {
+                        const item = document.createElement('div');
+                        item.className = 'contact-item';
+                        item.innerHTML = `
+                            <div class="contact-item-content">
+                                <strong>${contact.name}</strong>
+                                <span>${contact.type}: ${contact.value}</span>
+                            </div>
+                            <div class="item-actions">
+                                <button class="btn-danger btn-sm delete-contact" data-contact-id="${contact.id}">Delete</button>
+                            </div>
+                        `;
+                        contactList.appendChild(item);
+                    });
+                } else {
+                    contactList.innerHTML = '<p style="color: var(--text-secondary); font-size: 0.875rem;">No contacts added yet.</p>';
+                }
+
+                // Render dates
+                const datesList = document.getElementById('dates-list');
+                datesList.innerHTML = '';
+                if (data.dates && data.dates.length > 0) {
+                    data.dates.forEach(date => {
+                        const item = document.createElement('div');
+                        item.className = 'date-item';
+                        const dateObj = new Date(date.date);
+                        item.innerHTML = `
+                            <div class="date-item-content">
+                                <strong>${date.title || date.category}</strong>
+                                <span>${dateObj.toLocaleString()}</span>
+                                ${date.description ? `<span style="display: block; margin-top: 0.25rem;">${date.description}</span>` : ''}
+                            </div>
+                            <div class="item-actions">
+                                <button class="btn-danger btn-sm delete-date" data-date-id="${date.id}">Delete</button>
+                            </div>
+                        `;
+                        datesList.appendChild(item);
+                    });
+                } else {
+                    datesList.innerHTML = '<p style="color: var(--text-secondary); font-size: 0.875rem;">No dates added yet.</p>';
+                }
+
+                detailsModal.style.display = 'block';
+            });
+    }
+
+    // Save Job Details
+    document.getElementById('save-job-button').addEventListener('click', () => {
+        const notes = document.getElementById('modal-job-notes').value;
+
+        fetch(`/job/${currentJobId}/details`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ notes })
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.status === 'success') {
+                alert('Changes saved successfully!');
+            } else {
+                alert('Error saving changes');
+            }
+        });
+    });
+
+    // Delete Job
+    document.getElementById('delete-job-button').addEventListener('click', () => {
+        if (confirm('Are you sure you want to delete this job?')) {
+            fetch(`/job/${currentJobId}`, { method: 'DELETE' })
+                .then(response => response.json())
+                .then(result => {
+                    if (result.status === 'success') {
+                        location.reload();
+                    } else {
+                        alert('Error deleting job');
+                    }
+                });
+        }
+    });
+
+    // Add Contact
+    document.getElementById('add-contact-button').addEventListener('click', () => {
+        const name = document.getElementById('new-contact-name').value;
+        const type = document.getElementById('new-contact-type').value;
+        const value = document.getElementById('new-contact-value').value;
+
+        if (!name || !value) {
+            alert('Please fill in name and contact value');
+            return;
+        }
+
+        fetch(`/job/${currentJobId}/contact`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, type, value })
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.status === 'success') {
+                document.getElementById('new-contact-name').value = '';
+                document.getElementById('new-contact-value').value = '';
+                loadJobDetails(currentJobId);
+            } else {
+                alert('Error adding contact');
+            }
+        });
+    });
+
+    // Delete Contact
+    document.getElementById('contact-list').addEventListener('click', (e) => {
+        if (e.target.classList.contains('delete-contact')) {
+            const contactId = e.target.dataset.contactId;
+            fetch(`/contact/${contactId}`, { method: 'DELETE' })
+                .then(response => response.json())
+                .then(result => {
+                    if (result.status === 'success') {
+                        loadJobDetails(currentJobId);
+                    } else {
+                        alert('Error deleting contact');
+                    }
+                });
+        }
+    });
+
+    // Add Date
+    document.getElementById('add-date-button').addEventListener('click', () => {
+        const category = document.getElementById('new-date-category').value;
+        const date = document.getElementById('new-date-input').value;
+        const title = document.getElementById('new-date-title').value;
+        const description = document.getElementById('new-date-description').value;
+
+        if (!date) {
+            alert('Please select a date');
+            return;
+        }
+
+        fetch(`/job/${currentJobId}/date`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                date,
+                category,
+                title: title || category,
+                description
+            })
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.status === 'success') {
+                document.getElementById('new-date-input').value = '';
+                document.getElementById('new-date-title').value = '';
+                document.getElementById('new-date-description').value = '';
+                loadJobDetails(currentJobId);
+            } else {
+                alert('Error adding date');
+            }
+        });
+    });
+
+    // Delete Date
+    document.getElementById('dates-list').addEventListener('click', (e) => {
+        if (e.target.classList.contains('delete-date')) {
+            const dateId = e.target.dataset.dateId;
+            fetch(`/job_date/${dateId}`, { method: 'DELETE' })
+                .then(response => response.json())
+                .then(result => {
+                    if (result.status === 'success') {
+                        loadJobDetails(currentJobId);
+                    } else {
+                        alert('Error deleting date');
+                    }
+                });
+        }
+    });
+
+    // Close Modals
+    document.querySelectorAll('.close-button').forEach(btn => {
+        btn.addEventListener('click', () => {
+            detailsModal.style.display = 'none';
+            addJobModal.style.display = 'none';
+        });
+    });
+
+    document.getElementById('close-modal-button').addEventListener('click', () => {
+        detailsModal.style.display = 'none';
+    });
+
+    window.addEventListener('click', (e) => {
+        if (e.target === detailsModal) detailsModal.style.display = 'none';
+        if (e.target === addJobModal) addJobModal.style.display = 'none';
+    });
+
+    // Drag and Drop
+    document.querySelectorAll('.kanban-card').forEach(addCardEventListeners);
+
+    document.querySelectorAll('.kanban-column').forEach(column => {
+        column.addEventListener('dragover', e => {
+            e.preventDefault();
+            const afterElement = getDragAfterElement(column, e.clientY);
+            const dragging = document.querySelector('.dragging');
+            const cardsContainer = column.querySelector('.kanban-cards');
+
+            if (afterElement == null) {
+                cardsContainer.appendChild(dragging);
+            } else {
+                cardsContainer.insertBefore(dragging, afterElement);
+            }
+        });
+
+        column.addEventListener('drop', e => {
+            e.preventDefault();
+            const dragging = document.querySelector('.dragging');
+            const newStatus = column.dataset.status;
+            const jobId = dragging.dataset.jobId;
+
+            fetch(`/job/${jobId}/status`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: newStatus })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    // Update job counts
+                    location.reload();
+                } else {
+                    console.error('Failed to update job status');
+                }
+            });
+        });
+    });
+
+    function getDragAfterElement(column, y) {
+        const draggableElements = [...column.querySelectorAll('.kanban-card:not(.dragging)')];
+
+        return draggableElements.reduce((closest, child) => {
+            const box = child.getBoundingClientRect();
+            const offset = y - box.top - box.height / 2;
+            if (offset < 0 && offset > closest.offset) {
+                return { offset: offset, element: child };
+            } else {
+                return closest;
+            }
+        }, { offset: Number.NEGATIVE_INFINITY }).element;
+    }
+});
+</script>
 {% endblock %}

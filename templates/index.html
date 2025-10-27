@@ -3,155 +3,865 @@
 {% block title %}Job Listings - {{ super() }}{% endblock %}
 
 {% block head %}
-    <style>
-        .job-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-            gap: 1rem;
-        }
-        .job {
-            background-color: var(--header-background);
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            padding: 1.5rem;
-            display: flex;
-            flex-direction: column;
-        }
-        .job h2 {
-            margin-top: 0;
-            font-size: 1.2rem;
-            color: var(--text-color);
-        }
-        .job .company {
-            color: #8b949e;
-            margin-bottom: 1rem;
-        }
-        .job .search-criteria {
-            font-size: 0.8rem;
-            color: #8b949e;
-            margin-bottom: 1rem;
-        }
-        .job-details textarea {
-            width: 100%;
-            min-height: 80px;
-            background-color: var(--background-color);
-            color: var(--text-color);
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            padding: 0.5rem;
-            margin-top: 0.5rem;
-            box-sizing: border-box;
-        }
-        .job-details h4 {
-            margin-top: 1.5rem;
-            margin-bottom: 0.5rem;
-        }
-        .save-feedback {
-            font-size: 0.8rem;
-            color: var(--link-color);
-            margin-left: 1rem;
-            opacity: 0;
-            transition: opacity 0.5s;
-        }
-    </style>
+<style>
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+    }
+
+    /* Scrape Selector Carousel */
+    .scrape-selector-section {
+        margin-bottom: 2rem;
+        background-color: var(--card-background);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 1.5rem;
+        box-shadow: var(--shadow-sm);
+    }
+
+    .scrape-selector-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+
+    .scrape-selector-header h3 {
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--text-color);
+    }
+
+    .confirm-scrape-button {
+        background-color: var(--success-color);
+        padding: 0.5rem 1rem;
+        font-size: 0.875rem;
+    }
+
+    .confirm-scrape-button:hover {
+        background-color: #059669;
+    }
+
+    .confirm-scrape-button:disabled {
+        background-color: #9ca3af;
+        cursor: not-allowed;
+        opacity: 0.5;
+    }
+
+    .confirm-scrape-button:disabled:hover {
+        background-color: #9ca3af;
+        transform: none;
+        box-shadow: none;
+    }
+
+    /* Custom Confirmation Modal */
+    .confirm-modal {
+        display: none;
+        position: fixed;
+        z-index: 1001;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        backdrop-filter: blur(4px);
+    }
+
+    .confirm-modal-content {
+        background-color: white;
+        margin: 15% auto;
+        padding: 2rem;
+        border-radius: 12px;
+        width: 90%;
+        max-width: 500px;
+        box-shadow: var(--shadow-lg);
+    }
+
+    .confirm-modal-header {
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+        color: var(--text-color);
+    }
+
+    .confirm-modal-body {
+        margin-bottom: 1.5rem;
+        color: var(--text-secondary);
+        line-height: 1.6;
+    }
+
+    .confirm-modal-checkbox {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 1.5rem;
+        padding: 0.75rem;
+        background-color: var(--background-color);
+        border-radius: 8px;
+    }
+
+    .confirm-modal-checkbox input[type="checkbox"] {
+        width: auto;
+        cursor: pointer;
+    }
+
+    .confirm-modal-checkbox label {
+        cursor: pointer;
+        font-size: 0.9rem;
+        margin: 0;
+    }
+
+    .confirm-modal-actions {
+        display: flex;
+        gap: 0.75rem;
+    }
+
+    .confirm-modal-actions button {
+        flex: 1;
+    }
+
+    .scrape-carousel {
+        display: flex;
+        gap: 1rem;
+        overflow-x: auto;
+        padding: 0.5rem 0;
+        scroll-behavior: smooth;
+    }
+
+    .scrape-carousel::-webkit-scrollbar {
+        height: 6px;
+    }
+
+    .scrape-carousel::-webkit-scrollbar-track {
+        background: var(--background-color);
+        border-radius: 3px;
+    }
+
+    .scrape-carousel::-webkit-scrollbar-thumb {
+        background: var(--border-color);
+        border-radius: 3px;
+    }
+
+    .scrape-chip {
+        flex-shrink: 0;
+        padding: 1rem 1.25rem;
+        border: 2px solid var(--border-color);
+        border-radius: 12px;
+        cursor: pointer;
+        transition: all 0.2s;
+        background-color: white;
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+        min-width: 280px;
+        max-width: 320px;
+    }
+
+    .scrape-chip:hover {
+        border-color: var(--primary-color);
+        background-color: var(--primary-light);
+    }
+
+    .scrape-chip.active {
+        border-color: var(--primary-color);
+        background-color: var(--primary-color);
+        color: white;
+    }
+
+    .scrape-chip.processed {
+        border-color: var(--success-color);
+        background-color: #d1fae5;
+    }
+
+    .scrape-chip.processed.active {
+        border-color: var(--success-color);
+        background-color: var(--success-color);
+    }
+
+    .scrape-chip-title {
+        font-weight: 600;
+        font-size: 0.95rem;
+    }
+
+    .scrape-chip-location {
+        font-size: 0.8rem;
+        opacity: 0.85;
+    }
+
+    .scrape-chip-filters {
+        font-size: 0.75rem;
+        opacity: 0.8;
+        line-height: 1.4;
+    }
+
+    .scrape-chip-meta {
+        font-size: 0.7rem;
+        opacity: 0.75;
+        padding-top: 0.25rem;
+        border-top: 1px solid currentColor;
+        display: flex;
+        justify-content: space-between;
+    }
+
+    .processed-badge {
+        display: inline-block;
+        background-color: var(--success-color);
+        color: white;
+        padding: 0.15rem 0.5rem;
+        border-radius: 10px;
+        font-size: 0.65rem;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+
+    .job-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 1.25rem;
+        margin-bottom: 1.5rem;
+    }
+
+    /* Job Card with Score */
+    .job-card {
+        background-color: var(--card-background);
+        border: 1px solid var(--border-color);
+        border-radius: 10px;
+        padding: 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.65rem;
+        box-shadow: var(--shadow-sm);
+        transition: all 0.2s;
+        cursor: pointer;
+        position: relative;
+    }
+
+    .job-card:hover {
+        box-shadow: var(--shadow-md);
+        border-color: var(--primary-color);
+        transform: translateY(-2px);
+    }
+
+    .job-card.shortlisted {
+        border-color: #ef4444;
+        background-color: #fef2f2;
+    }
+
+    .job-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 0.75rem;
+    }
+
+    .job-card-title {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .job-card h3 {
+        margin: 0 0 0.4rem 0;
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: var(--text-color);
+        line-height: 1.3;
+    }
+
+    .job-card .company {
+        margin: 0;
+        font-size: 0.95rem;
+        color: var(--text-secondary);
+        font-weight: 600;
+    }
+
+    .job-card .location {
+        margin: 0.4rem 0 0 0;
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+    }
+
+    .job-card-badges {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 0.5rem;
+        flex-shrink: 0;
+    }
+
+    .shortlist-heart {
+        font-size: 1.4rem;
+        color: var(--border-color);
+        transition: all 0.2s;
+        line-height: 1;
+    }
+
+    .shortlist-heart.shortlisted {
+        color: #ef4444;
+    }
+
+    .matching-score {
+        padding: 0.35rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 700;
+        text-align: center;
+        min-width: 50px;
+    }
+
+    .score-high {
+        background-color: #d1fae5;
+        color: #065f46;
+    }
+
+    .score-medium {
+        background-color: #fef3c7;
+        color: #92400e;
+    }
+
+    .score-low {
+        background-color: #fee2e2;
+        color: #991b1b;
+    }
+
+    .job-meta {
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+        padding-top: 0.65rem;
+        border-top: 1px solid var(--border-color);
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        flex-grow: 1;
+    }
+
+    .shortlist-button {
+        width: 100%;
+        margin-top: auto;
+        padding: 0.75rem;
+        font-size: 0.95rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        background-color: var(--primary-color);
+        border: none;
+        transition: all 0.2s;
+        border-radius: 8px;
+        color: white;
+    }
+
+    .shortlist-button:hover {
+        background-color: var(--primary-hover);
+    }
+
+    .shortlist-button.shortlisted {
+        background-color: #ef4444;
+    }
+
+    .shortlist-button.shortlisted:hover {
+        background-color: #dc2626;
+    }
+
+    .expand-low-scores {
+        grid-column: 1 / -1;
+        text-align: center;
+        padding: 1.5rem;
+        background-color: var(--card-background);
+        border: 2px dashed var(--border-color);
+        border-radius: 12px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .expand-low-scores:hover {
+        border-color: var(--primary-color);
+        background-color: var(--primary-light);
+    }
+
+    .expand-low-scores span {
+        color: var(--text-secondary);
+        font-weight: 500;
+    }
+
+    .empty-state {
+        grid-column: 1 / -1;
+        text-align: center;
+        padding: 4rem 2rem;
+        color: var(--text-secondary);
+    }
+
+    .empty-state h3 {
+        font-size: 1.25rem;
+        margin-bottom: 0.5rem;
+        color: var(--text-color);
+    }
+
+    /* Modal */
+    #job-details-modal .modal-content {
+        width: 80%;
+        max-width: none;
+        max-height: 85vh;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .job-description-box {
+        background-color: var(--background-color);
+        padding: 1.5rem;
+        border-radius: 8px;
+        min-height: 400px;
+        max-height: 50vh;
+        overflow-y: auto;
+        font-size: 0.9rem;
+        line-height: 1.7;
+        color: var(--text-color);
+        white-space: pre-wrap;
+        word-wrap: break-word;
+    }
+
+    .info-section {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+        padding: 1rem;
+        background-color: var(--background-color);
+        border-radius: 8px;
+    }
+
+    .info-item {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+
+    .info-item-label {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .info-item-value {
+        font-size: 0.95rem;
+        color: var(--text-color);
+    }
+
+    .info-item-value a {
+        color: var(--primary-color);
+        text-decoration: underline;
+    }
+
+    .modal-section {
+        margin-bottom: 1.5rem;
+    }
+
+    .modal-section h3 {
+        font-size: 1.2rem;
+        font-weight: 600;
+        margin: 0 0 1rem 0;
+        color: var(--text-color);
+    }
+
+    .modal-actions {
+        display: flex;
+        gap: 0.75rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid var(--border-color);
+        margin-top: auto;
+        flex-shrink: 0;
+    }
+
+    .modal-actions button, .modal-actions a {
+        flex: 1;
+    }
+
+    .no-scrapes-message {
+        text-align: center;
+        padding: 2rem;
+        color: var(--text-secondary);
+    }
+</style>
 {% endblock %}
 
 {% block content %}
-    <h1>Scraped Job Listings</h1>
-    <div id="jobs-container" class="job-grid">
-        {% for job in jobs %}
-            <div class="job" data-job-id="{{ job.id }}">
-                <h2>{{ job.title }}</h2>
-                <div class="search-criteria">
-                    <span>Found with: <strong>{{ job.search_criteria.keywords }}</strong> in <strong>{{ job.search_criteria.locations }}</strong></span>
-                </div>
-                <p class="company">{{ job.company }}</p>
-                <p class="scraped-date">Scraped: {{ job.scraped_at.strftime('%Y-%m-%d %H:%M') }} UTC</p>
-                <div class="job-footer">
-                    <a href="{{ job.application_link }}" target="_blank" class="btn btn-primary">Apply</a>
-                    <button class="btn btn-secondary btn-expand">Show Details</button>
-                </div>
-                <div class="job-description">
-                    <h4>Description</h4>
-                    {{ job.description | nl2br | safe }}
+    <div class="page-header">
+        <h1>All Job Listings</h1>
+        <a href="{{ url_for('scrape') }}" class="btn">+ Scrape New Jobs</a>
+    </div>
 
-                    <div class="job-details">
-                        <h4>Notes</h4>
-                        <textarea class="job-notes">{{ job.notes or '' }}</textarea>
-                        <h4>Contact Info</h4>
-                        <textarea class="job-contact">{{ job.contact_info or '' }}</textarea>
-                        <h4>Positives</h4>
-                        <textarea class="job-positives">{{ job.positives or '' }}</textarea>
-                        <h4>Negatives</h4>
-                        <textarea class="job-negatives">{{ job.negatives or '' }}</textarea>
-                        <button class="btn btn-primary btn-save-details">Save Details</button>
-                        <span class="save-feedback">Saved!</span>
-                    </div>
+    {% if scrapes %}
+    <div class="scrape-selector-section">
+        <div class="scrape-selector-header">
+            <h3>Select Scrape to Review</h3>
+            <button id="confirm-scrape-button" class="btn confirm-scrape-button" style="display: none;">
+                ✓ Confirm & Clean Up Scrape
+            </button>
+        </div>
+        <div class="scrape-carousel" id="scrape-carousel">
+            {% for scrape in scrapes %}
+            <div class="scrape-chip {% if loop.first %}active{% endif %} {% if scrape.is_processed %}processed{% endif %}"
+                 data-scrape-id="{{ scrape.id }}"
+                 data-is-processed="{{ 'true' if scrape.is_processed else 'false' }}"
+                 data-non-shortlisted="{{ scrape.non_shortlisted_count }}">
+                <div class="scrape-chip-title">
+                    {{ scrape.keywords }}
+                    {% if scrape.is_processed %}<span class="processed-badge">✓ Processed</span>{% endif %}
+                </div>
+                <div class="scrape-chip-location">📍 {{ scrape.locations }}</div>
+                {% if scrape.distance_in_km or scrape.date_posted or scrape.exp_level or scrape.job_type %}
+                <div class="scrape-chip-filters">
+                    {% set filters = [] %}
+                    {% if scrape.distance_in_km %}{{ filters.append(scrape.distance_in_km ~ 'km') or '' }}{% endif %}
+                    {% if scrape.date_posted %}{{ filters.append(scrape.date_posted) or '' }}{% endif %}
+                    {% if scrape.exp_level %}{{ filters.append(scrape.exp_level) or '' }}{% endif %}
+                    {% if scrape.job_type %}{{ filters.append(scrape.job_type) or '' }}{% endif %}
+                    {{ filters | join(' • ') }}
+                </div>
+                {% endif %}
+                <div class="scrape-chip-meta">
+                    <span>{{ scrape.created_at.strftime('%b %d, %Y %H:%M') }}</span>
+                    <span>{{ scrape.job_count }} jobs</span>
                 </div>
             </div>
-        {% else %}
-            <p>No jobs found. Try scraping first.</p>
-        {% endfor %}
+            {% endfor %}
+        </div>
+    </div>
+
+    <div id="jobs-container" class="job-grid">
+        <!-- Jobs will be loaded here dynamically -->
+    </div>
+
+    <div id="expand-low-scores-section" style="display: none;">
+        <div class="job-grid">
+            <div class="expand-low-scores" id="expand-low-scores-button">
+                <span id="low-score-count">0 jobs below 80% match - Click to view</span>
+            </div>
+        </div>
+        <div id="low-score-jobs" class="job-grid" style="display: none; margin-top: 1.5rem;">
+            <!-- Low scoring jobs will be loaded here -->
+        </div>
+    </div>
+
+    {% else %}
+    <div class="no-scrapes-message">
+        <h3>No scrapes yet</h3>
+        <p>Start by scraping jobs from LinkedIn</p>
+        <a href="{{ url_for('scrape') }}" class="btn">Go to Scraper</a>
+    </div>
+    {% endif %}
+
+    <!-- Job Details Modal -->
+    <div id="job-details-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modal-job-title"></h2>
+                <button class="close-button" type="button">&times;</button>
+            </div>
+
+            <div class="info-section">
+                <div class="info-item">
+                    <span class="info-item-label">Company</span>
+                    <span class="info-item-value" id="modal-job-company"></span>
+                </div>
+                <div class="info-item">
+                    <span class="info-item-label">Location</span>
+                    <span class="info-item-value" id="modal-job-location"></span>
+                </div>
+                <div class="info-item">
+                    <span class="info-item-label">Matching Score</span>
+                    <span class="info-item-value" id="modal-job-score"></span>
+                </div>
+                <div class="info-item">
+                    <span class="info-item-label">Application Link</span>
+                    <span class="info-item-value"><a href="#" id="modal-job-link" target="_blank">Open Application →</a></span>
+                </div>
+            </div>
+
+            <div class="modal-section">
+                <h3>Job Description</h3>
+                <div class="job-description-box" id="modal-job-description"></div>
+            </div>
+
+            <div class="modal-actions">
+                <button type="button" class="btn-secondary" id="close-modal-button">Close</button>
+                <button type="button" id="modal-shortlist-button" class="btn">
+                    <span id="modal-shortlist-text">♡ Shortlist This Job</span>
+                </button>
+                <a href="#" id="modal-apply-button" class="btn" target="_blank">Apply Now →</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Confirmation Modal -->
+    <div id="confirm-modal" class="confirm-modal">
+        <div class="confirm-modal-content">
+            <div class="confirm-modal-header">Confirm Scrape Cleanup</div>
+            <div class="confirm-modal-body">
+                <p id="confirm-message"></p>
+            </div>
+            <div class="confirm-modal-checkbox">
+                <input type="checkbox" id="dont-ask-again">
+                <label for="dont-ask-again">Don't ask me again</label>
+            </div>
+            <div class="confirm-modal-actions">
+                <button type="button" class="btn-secondary" id="cancel-confirm">Cancel</button>
+                <button type="button" class="btn-danger" id="proceed-confirm">Delete Non-Shortlisted Jobs</button>
+            </div>
+        </div>
     </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-    document.addEventListener('DOMContentLoaded', () => {
-        const jobContainer = document.getElementById('jobs-container');
-        jobContainer.addEventListener('click', (e) => {
-            // --- Expand/Collapse Button --- 
-            if (e.target.classList.contains('btn-expand')) {
-                const button = e.target;
-                const description = button.closest('.job').querySelector('.job-description');
-                const isHidden = description.style.display === 'none' || description.style.display === '';
+document.addEventListener('DOMContentLoaded', () => {
+    const modal = document.getElementById('job-details-modal');
+    let currentJobId = null;
+    let currentScrapeId = null;
+    let allJobs = [];
+    let lowScoreJobsExpanded = false;
 
-                if (isHidden) {
-                    description.style.display = 'block';
-                    button.textContent = 'Hide Details';
-                } else {
-                    description.style.display = 'none';
-                    button.textContent = 'Show Details';
-                }
-            }
+    const SCORE_THRESHOLD = 80;
 
-            // --- Save Details Button --- 
-            if (e.target.classList.contains('btn-save-details')) {
-                const button = e.target;
-                const jobTile = button.closest('.job');
-                const jobId = jobTile.dataset.jobId;
-                const feedbackSpan = jobTile.querySelector('.save-feedback');
+    // Load jobs for selected scrape
+    function loadScrapeJobs(scrapeId) {
+        currentScrapeId = scrapeId;
 
-                const data = {
-                    notes: jobTile.querySelector('.job-notes').value,
-                    contact_info: jobTile.querySelector('.job-contact').value,
-                    positives: jobTile.querySelector('.job-positives').value,
-                    negatives: jobTile.querySelector('.job-negatives').value
-                };
+        fetch(`/scrape/${scrapeId}/jobs`)
+            .then(response => response.json())
+            .then(jobs => {
+                allJobs = jobs;
+                renderJobs();
+                document.getElementById('confirm-scrape-button').style.display = 'block';
+            });
+    }
 
-                fetch(`/job/${jobId}/details`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(data),
-                })
-                .then(response => response.json())
-                .then(result => {
-                    if (result.status === 'success') {
-                        feedbackSpan.style.opacity = 1;
-                        setTimeout(() => { feedbackSpan.style.opacity = 0; }, 2000);
-                    } else {
-                        alert('Error saving details: ' + result.message);
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    alert('An unexpected error occurred.');
+    // Render jobs (high scores and low scores separately)
+    function renderJobs() {
+        const highScoreJobs = allJobs.filter(job => job.matching_score >= SCORE_THRESHOLD);
+        const lowScoreJobs = allJobs.filter(job => job.matching_score < SCORE_THRESHOLD);
+
+        // Render high score jobs
+        const container = document.getElementById('jobs-container');
+        container.innerHTML = highScoreJobs.length > 0 ? '' : '<div class="empty-state"><h3>No high-scoring jobs (≥80%)</h3></div>';
+
+        highScoreJobs.forEach(job => {
+            container.appendChild(createJobCard(job));
+        });
+
+        // Handle low score jobs section
+        const expandSection = document.getElementById('expand-low-scores-section');
+        const lowScoreCount = document.getElementById('low-score-count');
+        const lowScoreContainer = document.getElementById('low-score-jobs');
+
+        if (lowScoreJobs.length > 0) {
+            expandSection.style.display = 'block';
+            lowScoreCount.textContent = `${lowScoreJobs.length} jobs below 80% match - Click to view`;
+
+            if (lowScoreJobsExpanded) {
+                lowScoreContainer.innerHTML = '';
+                lowScoreJobs.forEach(job => {
+                    lowScoreContainer.appendChild(createJobCard(job));
                 });
+            }
+        } else {
+            expandSection.style.display = 'none';
+        }
+    }
+
+    // Create job card element
+    function createJobCard(job) {
+        const card = document.createElement('div');
+        card.className = `job-card ${job.shortlisted ? 'shortlisted' : ''}`;
+        card.dataset.jobId = job.id;
+        card.dataset.shortlisted = job.shortlisted;
+
+        const scoreClass = job.matching_score >= 90 ? 'score-high' :
+                          job.matching_score >= 80 ? 'score-medium' : 'score-low';
+
+        card.innerHTML = `
+            <div class="job-card-header">
+                <div class="job-card-title">
+                    <h3>${job.title}</h3>
+                    <p class="company">${job.company}</p>
+                </div>
+                <div class="job-card-badges">
+                    <span class="shortlist-heart ${job.shortlisted ? 'shortlisted' : ''}">
+                        ${job.shortlisted ? '♥' : '♡'}
+                    </span>
+                    <span class="matching-score ${scoreClass}">${job.matching_score}%</span>
+                </div>
+            </div>
+            <p class="location">${job.location}</p>
+            <div class="job-meta">
+                <div><strong>Search:</strong> ${job.search_criteria.keywords} in ${job.search_criteria.locations}</div>
+                <div><strong>Scraped:</strong> ${new Date(job.scraped_at).toLocaleDateString('en-US', {month: 'short', day: 'numeric', year: 'numeric'})}</div>
+            </div>
+            <button class="shortlist-button ${job.shortlisted ? 'shortlisted' : ''}" data-job-id="${job.id}">
+                ${job.shortlisted ? '♥ Shortlisted' : '♡ Shortlist This Job'}
+            </button>
+        `;
+
+        return card;
+    }
+
+    // Scrape chip selection
+    document.getElementById('scrape-carousel').addEventListener('click', (e) => {
+        const chip = e.target.closest('.scrape-chip');
+        if (chip) {
+            document.querySelectorAll('.scrape-chip').forEach(c => c.classList.remove('active'));
+            chip.classList.add('active');
+            loadScrapeJobs(chip.dataset.scrapeId);
+            lowScoreJobsExpanded = false;
+            document.getElementById('low-score-jobs').style.display = 'none';
+        }
+    });
+
+    // Expand low score jobs
+    document.getElementById('expand-low-scores-button').addEventListener('click', () => {
+        const lowScoreContainer = document.getElementById('low-score-jobs');
+        lowScoreJobsExpanded = !lowScoreJobsExpanded;
+
+        if (lowScoreJobsExpanded) {
+            lowScoreContainer.style.display = 'grid';
+            renderJobs();
+            document.getElementById('low-score-count').textContent = 'Click to hide';
+        } else {
+            lowScoreContainer.style.display = 'none';
+            document.getElementById('low-score-count').textContent = `${allJobs.filter(j => j.matching_score < SCORE_THRESHOLD).length} jobs below 80% match - Click to view`;
+        }
+    });
+
+    // Confirm scrape
+    document.getElementById('confirm-scrape-button').addEventListener('click', () => {
+        if (!currentScrapeId) return;
+
+        const nonShortlisted = allJobs.filter(j => !j.shortlisted).length;
+        if (!confirm(`This will delete ${nonShortlisted} non-shortlisted jobs from this scrape. Continue?`)) {
+            return;
+        }
+
+        fetch(`/scrape/${currentScrapeId}/confirm`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.status === 'success') {
+                alert(`Deleted ${result.deleted_count} jobs. ${result.remaining_jobs} shortlisted jobs remain.`);
+                location.reload();
+            } else {
+                alert('Error confirming scrape');
             }
         });
     });
+
+    // Shortlist button handler
+    document.addEventListener('click', (e) => {
+        const button = e.target.closest('.shortlist-button');
+        if (button) {
+            e.stopPropagation();
+            const jobId = button.dataset.jobId;
+            toggleShortlist(jobId);
+        }
+    });
+
+    // Toggle shortlist function
+    function toggleShortlist(jobId) {
+        fetch(`/job/${jobId}/shortlist`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.status === 'success') {
+                // Update job in allJobs array
+                const job = allJobs.find(j => j.id == jobId);
+                if (job) {
+                    job.shortlisted = result.shortlisted;
+                    renderJobs();
+                }
+
+                // Update modal if open
+                const modalButton = document.getElementById('modal-shortlist-button');
+                const modalText = document.getElementById('modal-shortlist-text');
+                if (modalButton && modalText && currentJobId == jobId) {
+                    modalText.textContent = result.shortlisted ? '♥ Shortlisted' : '♡ Shortlist This Job';
+                    if (result.shortlisted) {
+                        modalButton.classList.remove('btn');
+                        modalButton.classList.add('btn-danger');
+                    } else {
+                        modalButton.classList.remove('btn-danger');
+                        modalButton.classList.add('btn');
+                    }
+                }
+            }
+        });
+    }
+
+    // Double-click to open modal
+    document.addEventListener('dblclick', (e) => {
+        if (e.target.closest('.shortlist-button')) return;
+
+        const card = e.target.closest('.job-card');
+        if (card) {
+            const jobId = card.dataset.jobId;
+            const job = allJobs.find(j => j.id == jobId);
+            if (job) {
+                currentJobId = jobId;
+                loadJobDetails(job);
+            }
+        }
+    });
+
+    // Load job details into modal
+    function loadJobDetails(job) {
+        document.getElementById('modal-job-title').textContent = job.title;
+        document.getElementById('modal-job-company').textContent = job.company || 'N/A';
+        document.getElementById('modal-job-location').textContent = job.location || 'N/A';
+        document.getElementById('modal-job-score').textContent = `${job.matching_score}%`;
+        document.getElementById('modal-job-link').href = job.application_link;
+        document.getElementById('modal-apply-button').href = job.application_link;
+        document.getElementById('modal-job-description').textContent = job.description || 'No description available';
+
+        const modalButton = document.getElementById('modal-shortlist-button');
+        const modalText = document.getElementById('modal-shortlist-text');
+        modalText.textContent = job.shortlisted ? '♥ Shortlisted' : '♡ Shortlist This Job';
+        if (job.shortlisted) {
+            modalButton.classList.remove('btn');
+            modalButton.classList.add('btn-danger');
+        } else {
+            modalButton.classList.remove('btn-danger');
+            modalButton.classList.add('btn');
+        }
+
+        modal.style.display = 'block';
+    }
+
+    // Modal shortlist button
+    document.getElementById('modal-shortlist-button').addEventListener('click', () => {
+        if (currentJobId) {
+            toggleShortlist(currentJobId);
+        }
+    });
+
+    // Close modal
+    modal.querySelector('.close-button').addEventListener('click', () => modal.style.display = 'none');
+    document.getElementById('close-modal-button').addEventListener('click', () => modal.style.display = 'none');
+    window.addEventListener('click', (e) => {
+        if (e.target === modal) modal.style.display = 'none';
+    });
+
+    // Load first scrape on page load
+    {% if scrapes %}
+    loadScrapeJobs({{ scrapes[0].id }});
+    {% endif %}
+});
 </script>
 {% endblock %}
-
