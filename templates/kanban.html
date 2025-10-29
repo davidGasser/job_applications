@@ -119,8 +119,67 @@
     }
 
     /* Modal Styling */
-    .modal-content {
-        max-width: 800px;
+    #job-details-modal .modal-content {
+        width: 80%;
+        max-width: none;
+        max-height: 85vh;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        border: 4px solid var(--border-color);
+        transition: border-color 0.3s ease;
+    }
+
+    #job-details-modal .modal-body-wrapper {
+        overflow-y: auto;
+        flex: 1;
+        padding: 0 2rem;
+    }
+
+    .modal-header {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 2rem 2rem 1rem 2rem;
+        border-top-left-radius: 8px;
+        border-top-right-radius: 8px;
+        flex-shrink: 0;
+    }
+
+    .modal-header-content {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .modal-header h2 {
+        margin: 0;
+        font-size: 1.5rem;
+    }
+
+    .modal-subheader {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        flex-wrap: wrap;
+        font-size: 0.95rem;
+        color: var(--text-secondary);
+    }
+
+    .modal-subheader-item {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+    }
+
+    .modal-subheader-divider {
+        color: var(--border-color);
+    }
+
+    .modal-actions {
+        padding: 1.5rem 2rem 2rem 2rem;
+        flex-shrink: 0;
     }
 
     .modal-section {
@@ -128,12 +187,21 @@
     }
 
     .modal-section h3 {
-        font-size: 1.1rem;
+        font-size: 1.2rem;
         font-weight: 600;
         margin: 0 0 1rem 0;
         color: var(--text-color);
-        padding-bottom: 0.5rem;
-        border-bottom: 2px solid var(--border-color);
+    }
+
+    .job-description-box {
+        background-color: var(--background-color);
+        padding: 1.5rem;
+        border-radius: 8px;
+        font-size: 0.9rem;
+        line-height: 1.7;
+        color: var(--text-color);
+        white-space: pre-wrap;
+        word-wrap: break-word;
     }
 
     .info-row {
@@ -220,15 +288,13 @@
         grid-column: 1 / -1;
     }
 
-    .modal-actions {
+    #job-details-modal .modal-actions {
         display: flex;
         gap: 0.75rem;
-        padding-top: 1.5rem;
         border-top: 1px solid var(--border-color);
-        margin-top: 1.5rem;
     }
 
-    .modal-actions button {
+    .modal-actions button, .modal-actions a {
         flex: 1;
     }
 
@@ -258,6 +324,69 @@
         min-height: 100px;
         resize: vertical;
     }
+
+    .nav-job-button {
+        background: none;
+        border: 2px solid var(--border-color);
+        color: var(--text-color);
+        font-size: 2rem;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+        padding: 0;
+        line-height: 1;
+    }
+
+    .nav-job-button:hover:not(:disabled) {
+        background-color: var(--primary-color);
+        border-color: var(--primary-color);
+        color: white;
+        transform: scale(1.1);
+    }
+
+    .nav-job-button:disabled {
+        opacity: 0.3;
+        cursor: not-allowed;
+    }
+
+    .modal-nav-bar {
+        padding: 0.75rem 2rem;
+        background-color: var(--background-color);
+        border-bottom: 1px solid var(--border-color);
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-shrink: 0;
+    }
+
+    .modal-nav-shortcuts {
+        display: flex;
+        gap: 1.5rem;
+        flex-wrap: wrap;
+    }
+
+    .modal-nav-shortcut {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+    }
+
+    .modal-nav-key {
+        background-color: white;
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        padding: 0.15rem 0.4rem;
+        font-family: monospace;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
 </style>
 {% endblock %}
 
@@ -283,7 +412,10 @@
                     {% for job in column_jobs %}
                     <div class="kanban-card" draggable="true" data-job-id="{{ job.id }}">
                         <h3>{{ job.title }}</h3>
-                        <p>{{ job.company }}</p>
+                        <p style="font-weight: 600;">{{ job.company }}</p>
+                        {% if job.location %}
+                        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.25rem;">📍 {{ job.location }}</p>
+                        {% endif %}
                     </div>
                     {% endfor %}
                 {% else %}
@@ -299,33 +431,67 @@
 <div id="job-details-modal" class="modal">
     <div class="modal-content">
         <div class="modal-header">
-            <h2 id="modal-job-title"></h2>
+            <button id="prev-job-button" class="nav-job-button" type="button">‹</button>
+            <div class="modal-header-content">
+                <h2 id="modal-job-title"></h2>
+                <div class="modal-subheader">
+                    <span class="modal-subheader-item">
+                        <strong id="modal-job-company"></strong>
+                    </span>
+                    <span class="modal-subheader-divider">•</span>
+                    <span class="modal-subheader-item" id="modal-job-location"></span>
+                    <span class="modal-subheader-divider">•</span>
+                    <span class="modal-subheader-item" id="modal-job-status"></span>
+                </div>
+                <div class="modal-subheader" style="font-size: 0.85rem; margin-top: 0.25rem;">
+                    <span class="modal-subheader-item">
+                        Scraped: <span id="modal-job-scraped"></span>
+                    </span>
+                    <span class="modal-subheader-divider">•</span>
+                    <span class="modal-subheader-item">
+                        Last updated: <span id="modal-job-updated"></span>
+                    </span>
+                </div>
+            </div>
+            <button id="next-job-button" class="nav-job-button" type="button">›</button>
             <button class="close-button" type="button">&times;</button>
         </div>
 
-        <div class="modal-section">
-            <div class="info-row">
-                <span class="info-label">Company:</span>
-                <span class="info-value" id="modal-job-company"></span>
+        <div class="modal-nav-bar">
+            <div class="modal-nav-shortcuts">
+                <div class="modal-nav-shortcut">
+                    <span class="modal-nav-key">←</span>
+                    <span class="modal-nav-key">→</span>
+                    <span>Navigate jobs</span>
+                </div>
+                <div class="modal-nav-shortcut">
+                    <span class="modal-nav-key">↑</span>
+                    <span class="modal-nav-key">↓</span>
+                    <span>Scroll</span>
+                </div>
+                <div class="modal-nav-shortcut">
+                    <span class="modal-nav-key">Enter</span>
+                    <span>Save</span>
+                </div>
+                <div class="modal-nav-shortcut">
+                    <span class="modal-nav-key">Del</span>
+                    <span>Delete</span>
+                </div>
+                <div class="modal-nav-shortcut">
+                    <span class="modal-nav-key">Esc</span>
+                    <span>Close</span>
+                </div>
             </div>
-            <div class="info-row">
-                <span class="info-label">Location:</span>
-                <span class="info-value" id="modal-job-location"></span>
-            </div>
-            <div class="info-row">
-                <span class="info-label">Status:</span>
-                <span class="info-value" id="modal-job-status"></span>
-            </div>
-            <div class="info-row">
-                <span class="info-label">Application Link:</span>
-                <span class="info-value"><a href="#" id="modal-job-link" target="_blank">Open Link →</a></span>
+            <div>
+                <span id="modal-job-position">Job 1 of 10</span>
             </div>
         </div>
 
-        <div class="modal-section">
-            <h3>Description</h3>
-            <div style="background-color: var(--background-color); padding: 1rem; border-radius: 8px; max-height: 200px; overflow-y: auto; font-size: 0.875rem;" id="modal-job-description"></div>
-        </div>
+        <div class="modal-body-wrapper">
+            <div class="modal-section">
+                <h3>Job Description</h3>
+                <div class="job-description-box" id="modal-job-description"></div>
+            </div>
 
         <div class="modal-section">
             <h3>Notes</h3>
@@ -334,8 +500,10 @@
 
         <div class="modal-section">
             <h3>Contacts</h3>
+            <p style="font-size: 0.85rem; color: var(--text-secondary); margin: -0.5rem 0 1rem 0;">You can add multiple contact methods for the same person by using the same name.</p>
             <div id="contact-list" class="contact-list"></div>
-            <div class="add-item-form">
+            <button type="button" id="show-contact-form-button" class="btn-secondary" style="margin-top: 0.75rem; width: 100%;">+ Add Contact</button>
+            <div class="add-item-form" id="contact-form" style="display: none;">
                 <input type="text" id="new-contact-name" placeholder="Contact Name">
                 <select id="new-contact-type">
                     <option value="email">Email</option>
@@ -343,15 +511,16 @@
                     <option value="linkedin">LinkedIn</option>
                     <option value="other">Other</option>
                 </select>
-                <input type="text" id="new-contact-value" placeholder="Contact Value" class="full-width-field">
-                <button type="button" id="add-contact-button" class="full-width-field">+ Add Contact</button>
+                <input type="text" id="new-contact-value" placeholder="Contact Value (e.g., email@example.com)" class="full-width-field">
+                <button type="button" id="add-contact-button" class="full-width-field">+ Add Contact Method</button>
             </div>
         </div>
 
         <div class="modal-section">
             <h3>Important Dates</h3>
             <div id="dates-list" class="date-list"></div>
-            <div class="add-item-form full-width">
+            <button type="button" id="show-date-form-button" class="btn-secondary" style="margin-top: 0.75rem; width: 100%;">+ Add Date</button>
+            <div class="add-item-form full-width" id="date-form" style="display: none;">
                 <select id="new-date-category">
                     <option value="deadline">Deadline</option>
                     <option value="interview">Interview</option>
@@ -364,34 +533,48 @@
                 <button type="button" id="add-date-button">+ Add Date</button>
             </div>
         </div>
+        </div>
 
         <div class="modal-actions">
             <button type="button" class="btn-secondary" id="close-modal-button">Close</button>
             <button type="button" class="btn-danger" id="delete-job-button">Delete Job</button>
-            <button type="button" id="save-job-button">Save Changes</button>
+            <button type="button" id="save-job-button" class="btn">Save Notes</button>
+            <a href="#" id="modal-apply-button" class="btn" target="_blank">Apply Now →</a>
         </div>
     </div>
 </div>
 
 <!-- Add Job Modal -->
 <div id="add-job-modal" class="modal">
-    <div class="modal-content">
+    <div class="modal-content" style="max-height: 90vh; overflow-y: auto;">
         <div class="modal-header">
             <h2>Add New Job</h2>
             <button class="close-button" type="button">&times;</button>
         </div>
-        <form id="add-job-form">
+        <form id="add-job-form" style="padding: 0 2rem 2rem 2rem;">
             <div class="form-group">
                 <label for="new-job-title">Job Title *</label>
                 <input type="text" id="new-job-title" placeholder="e.g., Senior Software Engineer" required>
             </div>
             <div class="form-group">
-                <label for="new-job-company">Company</label>
-                <input type="text" id="new-job-company" placeholder="e.g., Tech Corp">
+                <label for="new-job-company">Company *</label>
+                <input type="text" id="new-job-company" placeholder="e.g., Tech Corp" required>
             </div>
             <div class="form-group">
                 <label for="new-job-location">Location</label>
                 <input type="text" id="new-job-location" placeholder="e.g., San Francisco, CA">
+            </div>
+            <div class="form-group">
+                <label for="new-job-description">Job Description</label>
+                <textarea id="new-job-description" placeholder="Paste the job description here..." style="min-height: 150px;"></textarea>
+            </div>
+            <div class="form-group">
+                <label for="new-job-link">Application Link</label>
+                <input type="url" id="new-job-link" placeholder="https://...">
+            </div>
+            <div class="form-group">
+                <label for="new-job-notes">Notes</label>
+                <textarea id="new-job-notes" placeholder="Any initial notes about this job..." style="min-height: 80px;"></textarea>
             </div>
             <div class="modal-actions" style="margin-top: 1rem; padding-top: 1rem;">
                 <button type="button" class="btn-secondary" onclick="document.getElementById('add-job-modal').style.display='none'">Cancel</button>
@@ -407,6 +590,8 @@
 document.addEventListener('DOMContentLoaded', () => {
     let currentJobId = null;
     let editingDateId = null;
+    let allJobs = [];
+    let currentJobIndex = -1;
 
     const detailsModal = document.getElementById('job-details-modal');
     const addJobModal = document.getElementById('add-job-modal');
@@ -423,27 +608,48 @@ document.addEventListener('DOMContentLoaded', () => {
         const title = document.getElementById('new-job-title').value;
         const company = document.getElementById('new-job-company').value;
         const location = document.getElementById('new-job-location').value;
+        const description = document.getElementById('new-job-description').value;
+        const application_link = document.getElementById('new-job-link').value;
+        const notes = document.getElementById('new-job-notes').value;
 
         fetch('/job', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title, company, location })
+            body: JSON.stringify({
+                title,
+                company,
+                location,
+                description,
+                application_link,
+                notes,
+                status: 'Interested',
+                shortlisted: true
+            })
         })
         .then(response => response.json())
         .then(data => {
             if (data.id) {
-                location.reload(); // Reload to show new job
+                window.location.reload(); // Reload to show new job
+            } else if (data.status === 'error') {
+                alert('Error creating job: ' + data.message);
             } else {
                 alert('Error creating job');
             }
+        })
+        .catch(error => {
+            alert('Error creating job: ' + error);
         });
     });
+
+    // Collect all jobs on page load
+    allJobs = Array.from(document.querySelectorAll('.kanban-card')).map(card => parseInt(card.dataset.jobId));
 
     // Kanban Card Event Listeners
     function addCardEventListeners(card) {
         card.addEventListener('dblclick', () => {
             const jobId = card.dataset.jobId;
             currentJobId = jobId;
+            currentJobIndex = allJobs.indexOf(parseInt(jobId));
             loadJobDetails(jobId);
         });
 
@@ -465,24 +671,48 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('modal-job-company').textContent = data.company || 'N/A';
                 document.getElementById('modal-job-location').textContent = data.location || 'N/A';
                 document.getElementById('modal-job-status').innerHTML = `<span class="status-badge status-${data.status.toLowerCase().replace(' ', '-')}">${data.status}</span>`;
-                document.getElementById('modal-job-link').href = data.application_link;
-                document.getElementById('modal-job-description').innerHTML = data.description?.replace(/\n/g, '<br>') || 'No description available';
+                document.getElementById('modal-apply-button').href = data.application_link;
+                document.getElementById('modal-job-description').textContent = data.description || 'No description available';
                 document.getElementById('modal-job-notes').value = data.notes || '';
 
-                // Render contacts
+                // Format and display timestamps
+                const scrapedDate = new Date(data.scraped_at);
+                const updatedDate = new Date(data.updated_at);
+                document.getElementById('modal-job-scraped').textContent = scrapedDate.toLocaleDateString('en-US', {month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit'});
+                document.getElementById('modal-job-updated').textContent = updatedDate.toLocaleDateString('en-US', {month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit'});
+
+                // Render contacts grouped by name
                 const contactList = document.getElementById('contact-list');
                 contactList.innerHTML = '';
                 if (data.contacts && data.contacts.length > 0) {
+                    // Group contacts by name
+                    const groupedContacts = {};
                     data.contacts.forEach(contact => {
+                        if (!groupedContacts[contact.name]) {
+                            groupedContacts[contact.name] = [];
+                        }
+                        groupedContacts[contact.name].push(contact);
+                    });
+
+                    // Render each contact group
+                    Object.keys(groupedContacts).forEach(name => {
+                        const contactMethods = groupedContacts[name];
                         const item = document.createElement('div');
                         item.className = 'contact-item';
+
+                        const methodsHtml = contactMethods.map(c =>
+                            `<span style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
+                                <span>${c.type}: ${c.value}</span>
+                                <button class="btn-danger btn-sm delete-contact" data-contact-id="${c.id}" style="margin-left: 0.5rem; flex-shrink: 0;">×</button>
+                            </span>`
+                        ).join('');
+
                         item.innerHTML = `
-                            <div class="contact-item-content">
-                                <strong>${contact.name}</strong>
-                                <span>${contact.type}: ${contact.value}</span>
-                            </div>
-                            <div class="item-actions">
-                                <button class="btn-danger btn-sm delete-contact" data-contact-id="${contact.id}">Delete</button>
+                            <div class="contact-item-content" style="flex: 1;">
+                                <strong>${name}</strong>
+                                <div style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                                    ${methodsHtml}
+                                </div>
                             </div>
                         `;
                         contactList.appendChild(item);
@@ -513,6 +743,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 } else {
                     datesList.innerHTML = '<p style="color: var(--text-secondary); font-size: 0.875rem;">No dates added yet.</p>';
+                }
+
+                // Update navigation buttons
+                document.getElementById('prev-job-button').disabled = currentJobIndex <= 0;
+                document.getElementById('next-job-button').disabled = currentJobIndex >= allJobs.length - 1;
+
+                // Update position indicator
+                document.getElementById('modal-job-position').textContent = `Job ${currentJobIndex + 1} of ${allJobs.length}`;
+
+                // Scroll modal to top
+                const modalBody = document.querySelector('.modal-body-wrapper');
+                if (modalBody) {
+                    modalBody.scrollTop = 0;
                 }
 
                 detailsModal.style.display = 'block';
@@ -553,6 +796,19 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // Toggle contact form
+    document.getElementById('show-contact-form-button').addEventListener('click', () => {
+        const form = document.getElementById('contact-form');
+        const button = document.getElementById('show-contact-form-button');
+        if (form.style.display === 'none') {
+            form.style.display = 'grid';
+            button.textContent = '− Cancel';
+        } else {
+            form.style.display = 'none';
+            button.textContent = '+ Add Contact';
+        }
+    });
+
     // Add Contact
     document.getElementById('add-contact-button').addEventListener('click', () => {
         const name = document.getElementById('new-contact-name').value;
@@ -574,6 +830,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (result.status === 'success') {
                 document.getElementById('new-contact-name').value = '';
                 document.getElementById('new-contact-value').value = '';
+                document.getElementById('contact-form').style.display = 'none';
+                document.getElementById('show-contact-form-button').textContent = '+ Add Contact';
                 loadJobDetails(currentJobId);
             } else {
                 alert('Error adding contact');
@@ -594,6 +852,19 @@ document.addEventListener('DOMContentLoaded', () => {
                         alert('Error deleting contact');
                     }
                 });
+        }
+    });
+
+    // Toggle date form
+    document.getElementById('show-date-form-button').addEventListener('click', () => {
+        const form = document.getElementById('date-form');
+        const button = document.getElementById('show-date-form-button');
+        if (form.style.display === 'none') {
+            form.style.display = 'grid';
+            button.textContent = '− Cancel';
+        } else {
+            form.style.display = 'none';
+            button.textContent = '+ Add Date';
         }
     });
 
@@ -625,6 +896,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('new-date-input').value = '';
                 document.getElementById('new-date-title').value = '';
                 document.getElementById('new-date-description').value = '';
+                document.getElementById('date-form').style.display = 'none';
+                document.getElementById('show-date-form-button').textContent = '+ Add Date';
                 loadJobDetails(currentJobId);
             } else {
                 alert('Error adding date');
@@ -645,6 +918,72 @@ document.addEventListener('DOMContentLoaded', () => {
                         alert('Error deleting date');
                     }
                 });
+        }
+    });
+
+    // Navigate to previous/next job
+    function navigateJob(direction) {
+        if (allJobs.length === 0) return;
+
+        currentJobIndex += direction;
+        if (currentJobIndex < 0) currentJobIndex = 0;
+        if (currentJobIndex >= allJobs.length) currentJobIndex = allJobs.length - 1;
+
+        currentJobId = allJobs[currentJobIndex];
+        loadJobDetails(currentJobId);
+    }
+
+    // Navigation button handlers
+    document.getElementById('prev-job-button').addEventListener('click', () => navigateJob(-1));
+    document.getElementById('next-job-button').addEventListener('click', () => navigateJob(1));
+
+    // Keyboard navigation
+    document.addEventListener('keydown', (e) => {
+        // Only handle keyboard shortcuts when modal is open
+        if (detailsModal.style.display !== 'block') return;
+
+        // Don't interfere with typing in inputs, textareas, or selects
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+
+        switch(e.key) {
+            case 'ArrowLeft':
+                e.preventDefault();
+                if (currentJobIndex > 0) {
+                    navigateJob(-1);
+                }
+                break;
+            case 'ArrowRight':
+                e.preventDefault();
+                if (currentJobIndex < allJobs.length - 1) {
+                    navigateJob(1);
+                }
+                break;
+            case 'ArrowUp':
+                e.preventDefault();
+                // Scroll up in modal
+                const modalBody = document.querySelector('.modal-body-wrapper');
+                modalBody.scrollBy({ top: -100, behavior: 'smooth' });
+                break;
+            case 'ArrowDown':
+                e.preventDefault();
+                // Scroll down in modal
+                const modalBodyDown = document.querySelector('.modal-body-wrapper');
+                modalBodyDown.scrollBy({ top: 100, behavior: 'smooth' });
+                break;
+            case 'Enter':
+                e.preventDefault();
+                // Save changes
+                document.getElementById('save-job-button').click();
+                break;
+            case 'Delete':
+                e.preventDefault();
+                // Delete job
+                document.getElementById('delete-job-button').click();
+                break;
+            case 'Escape':
+                e.preventDefault();
+                detailsModal.style.display = 'none';
+                break;
         }
     });
 

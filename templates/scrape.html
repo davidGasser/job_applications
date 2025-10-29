@@ -70,6 +70,25 @@
         background-color: #059669;
     }
 
+    .scraper-card .btn-run.running {
+        background-color: #f59e0b;
+        cursor: not-allowed;
+    }
+
+    .scraper-card .btn-run.running:hover {
+        background-color: #f59e0b;
+        transform: none;
+    }
+
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+
+    .spinner {
+        display: inline-block;
+        animation: spin 1s linear infinite;
+    }
+
     .log-section {
         margin-top: 3rem;
         background-color: var(--card-background);
@@ -186,7 +205,10 @@
     <div id="scraper-container" class="scraper-container"></div>
 
     <div class="log-section">
-        <h2>Scraper Log</h2>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h2 style="margin: 0;">Scraper Log</h2>
+            <button id="stop-scrape-button" class="btn-danger" style="display: none;">⏹ Stop Scraping</button>
+        </div>
         <div class="log-container" id="log">Awaiting scrape to start...</div>
         <div id="status" class="status-message" style="display: none;"></div>
     </div>
@@ -275,26 +297,68 @@ document.addEventListener('DOMContentLoaded', () => {
     const socket = io.connect(location.protocol + '//' + document.domain + ':' + location.port);
     const log = document.getElementById('log');
     const status = document.getElementById('status');
+    const stopButton = document.getElementById('stop-scrape-button');
 
     socket.on('connect', () => {
-        console.log('WebSocket connected!');
+        console.log('[SCRAPER] WebSocket connected!');
+    });
+
+    socket.on('disconnect', () => {
+        console.log('[SCRAPER] WebSocket disconnected!');
     });
 
     socket.on('log_message', (msg) => {
+        console.log('[SCRAPER] Received log:', msg);
         log.textContent += msg.data + '\n';
         log.scrollTop = log.scrollHeight;
     });
 
     socket.on('scrape_finished', (msg) => {
+        console.log('[SCRAPER] Scrape finished:', msg);
         log.textContent += '\n✓ ' + msg.data + '\n';
         status.innerHTML = `<a href="/">View Scraped Jobs</a>`;
         status.style.display = 'block';
         log.scrollTop = log.scrollHeight;
+        stopButton.style.display = 'none';
+        resetAllRunButtons();
     });
 
     socket.on('scrape_error', (msg) => {
+        console.log('[SCRAPER] Scrape error:', msg);
         log.textContent += '\n✗ ERROR: ' + msg.data + '\n';
         log.scrollTop = log.scrollHeight;
+        stopButton.style.display = 'none';
+        resetAllRunButtons();
+    });
+
+    socket.on('scrape_stopped', (msg) => {
+        console.log('[SCRAPER] Scrape stopped:', msg);
+        log.textContent += '\n⏸ STOPPED: ' + msg.data + '\n';
+        status.innerHTML = `Scraping was interrupted. <a href="/">View Scraped Jobs</a>`;
+        status.style.display = 'block';
+        log.scrollTop = log.scrollHeight;
+        stopButton.style.display = 'none';
+        resetAllRunButtons();
+    });
+
+    function resetAllRunButtons() {
+        document.querySelectorAll('.run-scraper').forEach(btn => {
+            btn.classList.remove('running');
+            btn.disabled = false;
+            btn.innerHTML = '▶ Run';
+        });
+    }
+
+    function setRunButtonLoading(button) {
+        button.classList.add('running');
+        button.disabled = true;
+        button.innerHTML = '<span class="spinner">⟳</span> Running...';
+    }
+
+    stopButton.addEventListener('click', () => {
+        socket.emit('stop_scrape');
+        stopButton.disabled = true;
+        stopButton.textContent = '⏹ Stopping...';
     });
 
     const scraperContainer = document.getElementById('scraper-container');
@@ -485,11 +549,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
             }
         } else if (target.classList.contains('run-scraper')) {
+            console.log('[SCRAPER] Starting scrape for ID:', id);
+            setRunButtonLoading(target);
             log.textContent = 'Starting scrape...\n';
             status.style.display = 'none';
+            stopButton.style.display = 'block';
+            stopButton.disabled = false;
+            stopButton.textContent = '⏹ Stop Scraping';
             fetch(`/search_criteria/${id}`)
                 .then(response => response.json())
                 .then(data => {
+                    console.log('[SCRAPER] Emitting start_scrape with data:', data);
                     socket.emit('start_scrape', { data: data });
                 });
         }

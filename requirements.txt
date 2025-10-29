@@ -11,3 +11,4 @@ Flask-SQLAlchemy
 Flask-SocketIO
 gevent
 gevent-websocket
+debugpy

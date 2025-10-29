@@ -16,6 +16,7 @@ services:
     restart: always
     ports:
       - '5000:5000'
+      - '5678:5678'
     volumes:
       - .:/app
     depends_on:
@@ -25,7 +26,8 @@ services:
       - DATABASE_URL=postgresql://user:password@db:5432/jobs
       - FLASK_APP=src/main.py
       - FLASK_DEBUG=1
-    command: python src/main.py
+      - ENABLE_DEBUGPY=1
+    command: python -Xfrozen_modules=off src/main.py
 
   selenium:
     image: selenium/standalone-chrome:latest

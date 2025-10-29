@@ -1,6 +1,18 @@
 import os
 import logging
-from flask import Flask, jsonify, render_template, request, redirect, url_for
+
+# --- Debugpy Setup (MUST be before any gevent imports) ---
+# Enable debugpy for remote debugging from VS Code
+if os.environ.get('ENABLE_DEBUGPY', '0') == '1':
+    os.environ['GEVENT_SUPPORT'] = 'True'
+    import debugpy
+    debugpy.listen(("0.0.0.0", 5678))
+    print("⏳ Debugger is waiting for client to attach on port 5678...")
+    # Uncomment the next line if you want the app to wait for debugger to attach before continuing
+    # debugpy.wait_for_client()
+    print("✅ Debugger ready!")
+
+from flask import Flask, jsonify, render_template, request
 from flask_sqlalchemy import SQLAlchemy
 from markupsafe import Markup
 from scrapers import LinkedInScraper
@@ -19,6 +31,7 @@ socketio = SocketIO(app)
 class SocketIOHandler(logging.Handler):
     def emit(self, record):
         log_entry = self.format(record)
+        # Emit to all connected clients (default behavior from background thread)
         socketio.emit('log_message', {'data': log_entry})
 
 # Get the logger from scrapers.py and add our custom handler
@@ -41,6 +54,8 @@ class SearchCriteria(db.Model):
     exp_level = db.Column(db.String(255), nullable=True)
     job_type = db.Column(db.String(255), nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    is_processed = db.Column(db.Boolean, nullable=False, default=False)
+    is_template = db.Column(db.Boolean, nullable=False, default=True)  # True = saved config, False = search run
 
 class Job(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -56,7 +71,7 @@ class Job(db.Model):
     shortlisted = db.Column(db.Boolean, nullable=False, default=False)
     matching_score = db.Column(db.Float, nullable=False, default=0.0) # 0-100 percentage score
     notes = db.Column(db.Text, nullable=True)
-    search_criteria_id = db.Column(db.Integer, db.ForeignKey('search_criteria.id'))
+    search_criteria_id = db.Column(db.Integer, db.ForeignKey('search_criteria.id'), nullable=True)
     search_criteria = db.relationship('SearchCriteria', backref=db.backref('jobs', lazy=True))
     dates = db.relationship('JobDate', backref='job', lazy=True, cascade="all, delete-orphan")
     contacts = db.relationship('Contact', backref='job', lazy=True, cascade="all, delete-orphan")
@@ -134,16 +149,25 @@ def update_search_criteria(criteria_id):
 def delete_search_criteria(criteria_id):
     try:
         criteria = SearchCriteria.query.get_or_404(criteria_id)
+
+        # Detach jobs from this criteria (archive them) before deleting the criteria
+        jobs = Job.query.filter_by(search_criteria_id=criteria_id).all()
+        for job in jobs:
+            job.search_criteria_id = None
+
+        # Now delete the search criteria
         db.session.delete(criteria)
         db.session.commit()
-        return jsonify({'status': 'success'})
+        return jsonify({'status': 'success', 'archived_jobs': len(jobs)})
     except Exception as e:
+        db.session.rollback()
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 @app.route('/search_criterias')
 def get_search_criterias():
     try:
-        criterias = SearchCriteria.query.all()
+        # Only return templates (saved configurations), not search runs
+        criterias = SearchCriteria.query.filter_by(is_template=True).all()
         return jsonify([{
             'id': c.id,
             'keywords': c.keywords,
@@ -167,15 +191,13 @@ def index():
             job.matching_score = round(random.uniform(60, 100), 1)
     db.session.commit()
 
-    # Get unique search criteria with job counts
-    search_criterias = SearchCriteria.query.all()
+    # Get search runs (not templates) with job counts
+    search_criterias = SearchCriteria.query.filter_by(is_template=False).all()
     scrapes = []
     for sc in search_criterias:
         job_count = Job.query.filter_by(search_criteria_id=sc.id).count()
         if job_count > 0:  # Only include scrapes that have jobs
-            # Check if scrape is processed (all remaining jobs are shortlisted)
             non_shortlisted_count = Job.query.filter_by(search_criteria_id=sc.id, shortlisted=False).count()
-            is_processed = non_shortlisted_count == 0
 
             scrapes.append({
                 'id': sc.id,
@@ -187,9 +209,29 @@ def index():
                 'job_type': sc.job_type,
                 'job_count': job_count,
                 'non_shortlisted_count': non_shortlisted_count,
-                'is_processed': is_processed,
-                'created_at': sc.created_at
+                'is_processed': sc.is_processed,
+                'created_at': sc.created_at,
+                'is_archived': False
             })
+
+    # Add archived jobs (jobs with no search_criteria_id and shortlisted) as a special scrape
+    # Only shortlisted jobs should be in archived
+    archived_job_count = Job.query.filter_by(search_criteria_id=None, shortlisted=True).count()
+    if archived_job_count > 0:
+        scrapes.append({
+            'id': 'archived',
+            'keywords': 'Archived Jobs',
+            'locations': 'Various',
+            'distance_in_km': None,
+            'date_posted': None,
+            'exp_level': None,
+            'job_type': None,
+            'job_count': archived_job_count,
+            'non_shortlisted_count': 0,  # No non-shortlisted jobs in archived
+            'is_processed': True,  # Archived jobs are always "processed"
+            'created_at': datetime.utcnow(),  # Current time for sorting
+            'is_archived': True
+        })
 
     # Sort by most recent
     scrapes.sort(key=lambda x: x['created_at'], reverse=True)
@@ -221,20 +263,36 @@ def kanban():
 def create_job():
     try:
         data = request.json
+        # Handle application_link - if empty, set to None to avoid unique constraint issues
+        app_link = data.get('application_link')
+        if app_link == '':
+            app_link = None
+
+        # Explicitly convert shortlisted to boolean
+        shortlisted_val = data.get('shortlisted', False)
+        if isinstance(shortlisted_val, str):
+            shortlisted_val = shortlisted_val.lower() == 'true'
+
         new_job = Job(
             title=data['title'],
             company=data.get('company'),
             location=data.get('location'),
-            status='New'
+            description=data.get('description'),
+            application_link=app_link,
+            notes=data.get('notes'),
+            status=data.get('status', 'New'),
+            shortlisted=bool(shortlisted_val)
         )
         db.session.add(new_job)
         db.session.commit()
+
         return jsonify({
             'id': new_job.id,
             'title': new_job.title,
             'company': new_job.company
         })
     except Exception as e:
+        db.session.rollback()
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 @app.route('/job/<int:job_id>', methods=['DELETE'])
@@ -308,7 +366,7 @@ def get_job_details(job_id):
             'notes': job.notes,
             'dates': dates,
             'contacts': contacts,
-            'created_at': job.created_at.isoformat(),
+            'scraped_at': job.scraped_at.isoformat(),
             'updated_at': job.updated_at.isoformat()
         })
     except Exception as e:
@@ -419,10 +477,15 @@ def delete_job_date(date_id):
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
-@app.route('/scrape/<int:scrape_id>/jobs')
+@app.route('/scrape/<scrape_id>/jobs')
 def get_scrape_jobs(scrape_id):
     try:
-        jobs = Job.query.filter_by(search_criteria_id=scrape_id).order_by(Job.matching_score.desc()).all()
+        # Handle archived jobs specially - only show shortlisted jobs
+        if scrape_id == 'archived':
+            jobs = Job.query.filter_by(search_criteria_id=None, shortlisted=True).order_by(Job.matching_score.desc()).all()
+        else:
+            jobs = Job.query.filter_by(search_criteria_id=int(scrape_id)).order_by(Job.matching_score.desc()).all()
+
         return jsonify([{
             'id': job.id,
             'title': job.title,
@@ -436,7 +499,7 @@ def get_scrape_jobs(scrape_id):
             'search_criteria': {
                 'keywords': job.search_criteria.keywords,
                 'locations': job.search_criteria.locations
-            } if job.search_criteria else None
+            } if job.search_criteria else {'keywords': 'Archived', 'locations': 'Various'}
         } for job in jobs])
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
@@ -446,17 +509,26 @@ def confirm_scrape(scrape_id):
     try:
         # Delete all non-shortlisted jobs from this scrape
         jobs_to_delete = Job.query.filter_by(search_criteria_id=scrape_id, shortlisted=False).all()
+        deleted_count = len(jobs_to_delete)
         for job in jobs_to_delete:
             db.session.delete(job)
-        db.session.commit()
 
-        # Check if any jobs remain for this scrape
-        remaining_jobs = Job.query.filter_by(search_criteria_id=scrape_id).count()
+        # Move all shortlisted jobs to archived (remove search_criteria_id)
+        shortlisted_jobs = Job.query.filter_by(search_criteria_id=scrape_id, shortlisted=True).all()
+        archived_count = len(shortlisted_jobs)
+        for job in shortlisted_jobs:
+            job.search_criteria_id = None
+
+        # Delete the search criteria (scraper run)
+        search_criteria = SearchCriteria.query.get_or_404(scrape_id)
+        db.session.delete(search_criteria)
+
+        db.session.commit()
 
         return jsonify({
             'status': 'success',
-            'deleted_count': len(jobs_to_delete),
-            'remaining_jobs': remaining_jobs
+            'deleted_count': deleted_count,
+            'archived_count': archived_count
         })
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
@@ -481,36 +553,82 @@ def get_job_dates():
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 # --- WebSocket Event Handlers ---
-@socketio.on('start_scrape')
-def handle_start_scrape(json):
+# Global flag to interrupt scraping
+scraping_active = False
+
+@socketio.on('stop_scrape')
+def handle_stop_scrape():
+    global scraping_active
+    scraping_active = False
+    socketio.emit('scrape_stopped', {'data': 'Scraping interrupted by user'})
+
+def run_scraping_task(data):
+    """Background task to run the scraper."""
+    global scraping_active
     try:
         with app.app_context():
-            data = json.get('data')
-            # Find or create the SearchCriteria
-            criteria_data = {
-                'keywords': data.get('keywords'),
-                'locations': data.get('locations'),
-                'distance_in_km': int(data.get('distance')) if data.get('distance') else None,
-                'date_posted': data.get('date_posted') if data.get('date_posted') else None,
-                'exp_level': ', '.join(data.get('exp_level', [])) if data.get('exp_level') else None,
-                'job_type': ', '.join(data.get('job_type', [])) if data.get('job_type') else None
-            }
-            search_criteria = SearchCriteria.query.filter_by(**criteria_data).first()
-            if not search_criteria:
-                search_criteria = SearchCriteria(**criteria_data)
+            # Send initial confirmation that scraping started
+            socketio.emit('log_message', {'data': 'Scraping task started...'})
+            socketio.sleep(0.1)  # Small delay to ensure message is sent
+
+            # Always create a NEW SearchCriteria as a run (is_template=False)
+            # The ID provided is for the template, we create a new run from it
+            if 'id' in data and data['id']:
+                template = SearchCriteria.query.get(data['id'])
+                if not template:
+                    socketio.emit('scrape_error', {'data': 'Search criteria template not found'})
+                    return
+
+                # Create a new run from the template
+                search_criteria = SearchCriteria(
+                    keywords=template.keywords,
+                    locations=template.locations,
+                    distance_in_km=template.distance_in_km,
+                    date_posted=template.date_posted,
+                    exp_level=template.exp_level,
+                    job_type=template.job_type,
+                    is_template=False  # This is a run, not a template
+                )
+                db.session.add(search_criteria)
+                db.session.commit()
+            else:
+                # Direct scrape without template (old behavior, create run directly)
+                keywords = data.get('keywords')
+                locations = data.get('locations')
+                distance_in_km = int(data.get('distance')) if data.get('distance') else None
+                date_posted = data.get('date_posted') if data.get('date_posted') else None
+                exp_level = ', '.join(data.get('exp_level', [])) if data.get('exp_level') else None
+                job_type = ', '.join(data.get('job_type', [])) if data.get('job_type') else None
+
+                search_criteria = SearchCriteria(
+                    keywords=keywords,
+                    locations=locations,
+                    distance_in_km=distance_in_km,
+                    date_posted=date_posted,
+                    exp_level=exp_level,
+                    job_type=job_type,
+                    is_template=False  # This is a run, not a template
+                )
                 db.session.add(search_criteria)
                 db.session.commit()
 
+            # Use search_criteria fields for the scraper
             scraper = LinkedInScraper(
-                keywords=data.get('keywords'),
-                locations=[loc.strip() for loc in data.get('locations', '').split(',')],
-                distance_in_km=int(data.get('distance')) if data.get('distance') else None,
-                date_posted=data.get('date_posted') if data.get('date_posted') else None,
-                exp_level=data.get('exp_level') if data.get('exp_level') else None,
-                job_type=data.get('job_type') if data.get('job_type') else None,
-                pages=int(data.get('pages', 1))
+                keywords=search_criteria.keywords,
+                locations=[loc.strip() for loc in search_criteria.locations.split(',')],
+                distance_in_km=search_criteria.distance_in_km,
+                date_posted=search_criteria.date_posted,
+                exp_level=search_criteria.exp_level.split(', ') if search_criteria.exp_level else None,
+                job_type=search_criteria.job_type.split(', ') if search_criteria.job_type else None,
+                pages=int(data.get('pages', 1)),
+                stop_callback=lambda: not scraping_active  # Pass stop check callback
             )
             jobs_data = scraper.scrape_jobs()
+
+            # Check if scraping was stopped
+            if not scraping_active:
+                socketio.emit('scrape_stopped', {'data': 'Scraping was stopped by user'})
+                return
 
             for job_data in jobs_data.to_dict('records'):
                 if job_data.get('application_link') == 'Not Available':
@@ -521,15 +639,28 @@ def handle_start_scrape(json):
                     job = Job(**job_data, search_criteria_id=search_criteria.id)
                     db.session.add(job)
             db.session.commit()
-            
+
             socketio.emit('scrape_finished', {'data': f'Scraping complete. {len(jobs_data)} unique jobs found.'})
 
     except Exception as e:
         logging.error(f"An error occurred during scraping: {e}")
         socketio.emit('scrape_error', {'data': str(e)})
+    finally:
+        scraping_active = False
+
+@socketio.on('start_scrape')
+def handle_start_scrape(json):
+    global scraping_active
+    scraping_active = True
+    data = json.get('data')
+    # Run scraping in background thread to avoid blocking SocketIO
+    socketio.start_background_task(run_scraping_task, data)
 
 # --- Main Execution ---
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
-    socketio.run(app, host='0.0.0.0', port=5000)
+
+    # Disable Flask's reloader when using debugpy to avoid port conflicts
+    use_reloader = os.environ.get('ENABLE_DEBUGPY', '0') != '1'
+    socketio.run(app, host='0.0.0.0', port=5000, use_reloader=use_reloader)

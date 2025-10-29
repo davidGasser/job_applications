@@ -51,8 +51,9 @@ class LinkedInScraper:
                  date_posted: str = None,
                  exp_level: Union[List[str], str] = None,
                  job_type: Union[List[str], str] = None,
-                 pages: int = 1):
-        
+                 pages: int = 1,
+                 stop_callback=None):
+
         self.keywords = keywords
         self.locations = locations if isinstance(locations, list) else [locations]
         self.distance = distance_in_km
@@ -62,7 +63,8 @@ class LinkedInScraper:
         self.pages = pages
         self.driver = None
         self.total_jobs_scraped = 0
-        
+        self.stop_callback = stop_callback or (lambda: False)
+
         logger.info(f"Initializing scraper for keyword '{keywords}' in {len(self.locations)} location(s)")
         self._validate_input()
     
@@ -170,40 +172,44 @@ class LinkedInScraper:
         time.sleep(1)
         items = self.driver.find_elements(By.CSS_SELECTOR, 'li.scaffold-layout__list-item')
         logger.info(f"[{location}] Page {page_num}: Found {len(items)} job listings")
-        
+
         for idx, item in enumerate(items, 1):
+            # Check if stop was requested
+            if self.stop_callback():
+                logger.info("Scraping stopped by user request")
+                return
+
             try:
                 # Close warning dialogs
-                try: 
-                    if self.driver.find_element(By.XPATH, "//div[contains(@class, 'job-trust-pre-apply')]"): 
+                try:
+                    if self.driver.find_element(By.XPATH, "//div[contains(@class, 'job-trust-pre-apply')]"):
                         close_button = self.driver.find_element(By.XPATH, "//button[1]")
                         close_button.click()
                 except:
                     pass
-                
+
                 item.click()
                 time.sleep(0.4)
-            
+
                 page_soup = BeautifulSoup(self.driver.page_source, 'html.parser')
-                
+
                 company_div = page_soup.find('div', class_=re.compile(r'company-name'))
                 company_link = company_div.find('a') if company_div else None
                 company_text = company_link.get_text(strip=True) if company_link else "Not Available"
-                
+
                 try:
                     location_elem = self.driver.find_element(By.XPATH, "//span[contains(@dir, 'ltr')]/span[contains(@class,'tvm__text')][1]")
                     location_text = location_elem.text
                 except:
                     location_text = "Not Available"
-                
+
                 title_elem = page_soup.find('h1', class_=re.compile(r't-24'))
                 job_title = title_elem.get_text(strip=True) if title_elem else "Not Available"
-                
+
                 desc_elem = page_soup.find('div', class_=re.compile(r'jobs-description-content__text'))
-                description = desc_elem.get_text(separator='\n', strip=True) if desc_elem else "Not Available"
-                
+                description = desc_elem.get_text(" ", strip=True) if desc_elem else "Not Available"
                 app_link = self._get_application_link()
-                
+
                 jobs_data.append({
                     'title': job_title,
                     'company': company_text,
@@ -211,10 +217,10 @@ class LinkedInScraper:
                     'description': description,
                     'application_link': app_link
                 })
-                
+
                 self.total_jobs_scraped += 1
                 logger.info(f"[{location}] Job {idx}/{len(items)}: {job_title} @ {company_text} | Total: {self.total_jobs_scraped}")
-            
+
             except Exception as e:
                 logger.warning(f"[{location}] Failed to scrape job {idx}/{len(items)}: {e}")
                 continue
@@ -245,7 +251,7 @@ class LinkedInScraper:
         logger.info("=" * 60)
         logger.info("Starting LinkedIn job scraping")
         logger.info("=" * 60)
-        
+
         opts = webdriver.ChromeOptions()
         opts.add_argument('--disable-blink-features=AutomationControlled')
         opts.add_experimental_option('excludeSwitches', ['enable-automation'])
@@ -255,21 +261,31 @@ class LinkedInScraper:
             command_executor='http://selenium:4444/wd/hub',
             options=opts
         )
-        
+
         try:
             self._load_cookies()
-            
+
             jobs_data = []
-            
+
             for loc_idx, location in enumerate(self.locations, 1):
+                # Check if stop was requested
+                if self.stop_callback():
+                    logger.info("Scraping stopped by user request")
+                    break
+
                 logger.info(f"Scraping location {loc_idx}/{len(self.locations)}: {location}")
                 self.driver.get(self._build_url(location))
-                
+
                 page_num = 1
                 while page_num <= self.pages:
+                    # Check if stop was requested
+                    if self.stop_callback():
+                        logger.info("Scraping stopped by user request")
+                        break
+
                     try:
                         self._scrape_page(jobs_data, location, page_num)
-                        
+
                         next_btn = self.driver.find_element(By.XPATH, "//button[span[text()='Next']]")
                         if not next_btn.is_enabled():
                             logger.info(f"[{location}] No more pages available")
@@ -280,24 +296,29 @@ class LinkedInScraper:
                     except Exception as e:
                         logger.warning(f"[{location}] Error on page {page_num}: {e}")
                         break
-                
+
+                # Check if stop was requested before moving to next location
+                if self.stop_callback():
+                    logger.info("Scraping stopped by user request")
+                    break
+
                 logger.info(f"Completed {location} - Total jobs scraped so far: {self.total_jobs_scraped}\n")
-            
+
             df = pd.DataFrame(jobs_data)
             prev_len = len(df)
             df.drop_duplicates(subset=["company", "title"], inplace=True)
             logger.info(f"{prev_len-len(df)} duplicate instances was/were detected and deleted.")
-            
+
             logger.info("=" * 60)
             logger.info(f"Scraping complete! Total jobs scraped: {self.total_jobs_scraped}")
             logger.info("=" * 60)
-            
+
             return df
-        
-        except Exception as e: 
+
+        except Exception as e:
             logger.error(f"LinkedIn scraping failed: {e}")
             raise RuntimeError(f"LinkedIn scraping failed with exception {e}")
-        
+
         finally:
             self.driver.quit()
             logger.info("Browser closed")

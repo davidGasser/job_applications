@@ -405,18 +405,102 @@
         width: 80%;
         max-width: none;
         max-height: 85vh;
-        overflow-y: auto;
+        overflow: hidden;
         display: flex;
         flex-direction: column;
+        border: 4px solid var(--border-color);
+        transition: border-color 0.3s ease;
+    }
+
+    #job-details-modal .modal-body-wrapper {
+        overflow-y: auto;
+        flex: 1;
+        padding: 0 2rem;
+    }
+
+    #job-details-modal .modal-content.shortlisted-border {
+        border-color: #10b981;
+    }
+
+    .nav-job-button {
+        background: none;
+        border: 2px solid var(--border-color);
+        color: var(--text-color);
+        font-size: 2rem;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+        padding: 0;
+        line-height: 1;
+    }
+
+    .nav-job-button:hover:not(:disabled) {
+        background-color: var(--primary-color);
+        border-color: var(--primary-color);
+        color: white;
+        transform: scale(1.1);
+    }
+
+    .nav-job-button:disabled {
+        opacity: 0.3;
+        cursor: not-allowed;
+    }
+
+    .modal-header {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 2rem 2rem 1rem 2rem;
+        border-top-left-radius: 8px;
+        border-top-right-radius: 8px;
+        flex-shrink: 0;
+    }
+
+    .modal-header-content {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .modal-header h2 {
+        margin: 0;
+        font-size: 1.5rem;
+    }
+
+    .modal-subheader {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        flex-wrap: wrap;
+        font-size: 0.95rem;
+        color: var(--text-secondary);
+    }
+
+    .modal-subheader-item {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+    }
+
+    .modal-subheader-divider {
+        color: var(--border-color);
+    }
+
+    .modal-actions {
+        padding: 1.5rem 2rem 2rem 2rem;
+        flex-shrink: 0;
     }
 
     .job-description-box {
         background-color: var(--background-color);
         padding: 1.5rem;
         border-radius: 8px;
-        min-height: 400px;
-        max-height: 50vh;
-        overflow-y: auto;
         font-size: 0.9rem;
         line-height: 1.7;
         color: var(--text-color);
@@ -469,13 +553,44 @@
         color: var(--text-color);
     }
 
-    .modal-actions {
+    .modal-nav-bar {
+        padding: 0.75rem 2rem;
+        background-color: var(--background-color);
+        border-bottom: 1px solid var(--border-color);
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-shrink: 0;
+    }
+
+    .modal-nav-shortcuts {
+        display: flex;
+        gap: 1.5rem;
+        flex-wrap: wrap;
+    }
+
+    .modal-nav-shortcut {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+    }
+
+    .modal-nav-key {
+        background-color: white;
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        padding: 0.15rem 0.4rem;
+        font-family: monospace;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    #job-details-modal .modal-actions {
         display: flex;
         gap: 0.75rem;
-        padding-top: 1.5rem;
         border-top: 1px solid var(--border-color);
-        margin-top: auto;
-        flex-shrink: 0;
     }
 
     .modal-actions button, .modal-actions a {
@@ -518,10 +633,10 @@
                 {% if scrape.distance_in_km or scrape.date_posted or scrape.exp_level or scrape.job_type %}
                 <div class="scrape-chip-filters">
                     {% set filters = [] %}
-                    {% if scrape.distance_in_km %}{{ filters.append(scrape.distance_in_km ~ 'km') or '' }}{% endif %}
-                    {% if scrape.date_posted %}{{ filters.append(scrape.date_posted) or '' }}{% endif %}
-                    {% if scrape.exp_level %}{{ filters.append(scrape.exp_level) or '' }}{% endif %}
-                    {% if scrape.job_type %}{{ filters.append(scrape.job_type) or '' }}{% endif %}
+                    {% if scrape.distance_in_km %}{% set _ = filters.append(scrape.distance_in_km ~ 'km') %}{% endif %}
+                    {% if scrape.date_posted %}{% set _ = filters.append(scrape.date_posted) %}{% endif %}
+                    {% if scrape.exp_level %}{% set _ = filters.append(scrape.exp_level) %}{% endif %}
+                    {% if scrape.job_type %}{% set _ = filters.append(scrape.job_type) %}{% endif %}
                     {{ filters | join(' • ') }}
                 </div>
                 {% endif %}
@@ -561,32 +676,65 @@
     <div id="job-details-modal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2 id="modal-job-title"></h2>
+                <button id="prev-job-button" class="nav-job-button" type="button">‹</button>
+                <div class="modal-header-content">
+                    <h2 id="modal-job-title"></h2>
+                    <div class="modal-subheader">
+                        <span class="modal-subheader-item">
+                            <strong id="modal-job-company"></strong>
+                        </span>
+                        <span class="modal-subheader-divider">•</span>
+                        <span class="modal-subheader-item" id="modal-job-location"></span>
+                        <span class="modal-subheader-divider">•</span>
+                        <span class="modal-subheader-item">
+                            <span id="modal-job-score"></span> match
+                        </span>
+                    </div>
+                    <div class="modal-subheader" style="font-size: 0.85rem; margin-top: 0.25rem;">
+                        <span class="modal-subheader-item">
+                            Scraped: <span id="modal-job-scraped"></span>
+                        </span>
+                        <span class="modal-subheader-divider">•</span>
+                        <span class="modal-subheader-item">
+                            Last updated: <span id="modal-job-updated"></span>
+                        </span>
+                    </div>
+                </div>
+                <button id="next-job-button" class="nav-job-button" type="button">›</button>
                 <button class="close-button" type="button">&times;</button>
             </div>
 
-            <div class="info-section">
-                <div class="info-item">
-                    <span class="info-item-label">Company</span>
-                    <span class="info-item-value" id="modal-job-company"></span>
+            <div class="modal-nav-bar">
+                <div class="modal-nav-shortcuts">
+                    <div class="modal-nav-shortcut">
+                        <span class="modal-nav-key">←</span>
+                        <span class="modal-nav-key">→</span>
+                        <span>Navigate jobs</span>
+                    </div>
+                    <div class="modal-nav-shortcut">
+                        <span class="modal-nav-key">↑</span>
+                        <span class="modal-nav-key">↓</span>
+                        <span>Scroll</span>
+                    </div>
+                    <div class="modal-nav-shortcut">
+                        <span class="modal-nav-key">Enter</span>
+                        <span>Shortlist</span>
+                    </div>
+                    <div class="modal-nav-shortcut">
+                        <span class="modal-nav-key">Esc</span>
+                        <span>Close</span>
+                    </div>
                 </div>
-                <div class="info-item">
-                    <span class="info-item-label">Location</span>
-                    <span class="info-item-value" id="modal-job-location"></span>
-                </div>
-                <div class="info-item">
-                    <span class="info-item-label">Matching Score</span>
-                    <span class="info-item-value" id="modal-job-score"></span>
-                </div>
-                <div class="info-item">
-                    <span class="info-item-label">Application Link</span>
-                    <span class="info-item-value"><a href="#" id="modal-job-link" target="_blank">Open Application →</a></span>
+                <div>
+                    <span id="modal-job-position">Job 1 of 10</span>
                 </div>
             </div>
 
-            <div class="modal-section">
-                <h3>Job Description</h3>
-                <div class="job-description-box" id="modal-job-description"></div>
+            <div class="modal-body-wrapper">
+                <div class="modal-section">
+                    <h3>Job Description</h3>
+                    <div class="job-description-box" id="modal-job-description"></div>
+                </div>
             </div>
 
             <div class="modal-actions">
@@ -638,40 +786,67 @@ document.addEventListener('DOMContentLoaded', () => {
             .then(jobs => {
                 allJobs = jobs;
                 renderJobs();
-                document.getElementById('confirm-scrape-button').style.display = 'block';
+
+                // Show/hide confirm button based on processed status
+                const activeChip = document.querySelector('.scrape-chip.active');
+                const confirmButton = document.getElementById('confirm-scrape-button');
+
+                if (activeChip && activeChip.dataset.isProcessed === 'true') {
+                    confirmButton.disabled = true;
+                    confirmButton.style.display = 'none';
+                } else {
+                    confirmButton.disabled = false;
+                    confirmButton.style.display = 'block';
+                }
             });
     }
 
-    // Render jobs (high scores and low scores separately)
+    // Render jobs (high scores and low scores separately, unless it's archived)
     function renderJobs() {
-        const highScoreJobs = allJobs.filter(job => job.matching_score >= SCORE_THRESHOLD);
-        const lowScoreJobs = allJobs.filter(job => job.matching_score < SCORE_THRESHOLD);
+        const isArchived = currentScrapeId === 'archived';
 
-        // Render high score jobs
-        const container = document.getElementById('jobs-container');
-        container.innerHTML = highScoreJobs.length > 0 ? '' : '<div class="empty-state"><h3>No high-scoring jobs (≥80%)</h3></div>';
+        if (isArchived) {
+            // For archived jobs, show all jobs without any threshold
+            const container = document.getElementById('jobs-container');
+            container.innerHTML = allJobs.length > 0 ? '' : '<div class="empty-state"><h3>No archived jobs</h3></div>';
 
-        highScoreJobs.forEach(job => {
-            container.appendChild(createJobCard(job));
-        });
+            allJobs.forEach(job => {
+                container.appendChild(createJobCard(job));
+            });
 
-        // Handle low score jobs section
-        const expandSection = document.getElementById('expand-low-scores-section');
-        const lowScoreCount = document.getElementById('low-score-count');
-        const lowScoreContainer = document.getElementById('low-score-jobs');
-
-        if (lowScoreJobs.length > 0) {
-            expandSection.style.display = 'block';
-            lowScoreCount.textContent = `${lowScoreJobs.length} jobs below 80% match - Click to view`;
-
-            if (lowScoreJobsExpanded) {
-                lowScoreContainer.innerHTML = '';
-                lowScoreJobs.forEach(job => {
-                    lowScoreContainer.appendChild(createJobCard(job));
-                });
-            }
+            // Hide low score section for archived
+            document.getElementById('expand-low-scores-section').style.display = 'none';
         } else {
-            expandSection.style.display = 'none';
+            // For regular scrapes, use the threshold
+            const highScoreJobs = allJobs.filter(job => job.matching_score >= SCORE_THRESHOLD);
+            const lowScoreJobs = allJobs.filter(job => job.matching_score < SCORE_THRESHOLD);
+
+            // Render high score jobs
+            const container = document.getElementById('jobs-container');
+            container.innerHTML = highScoreJobs.length > 0 ? '' : '<div class="empty-state"><h3>No high-scoring jobs (≥80%)</h3></div>';
+
+            highScoreJobs.forEach(job => {
+                container.appendChild(createJobCard(job));
+            });
+
+            // Handle low score jobs section
+            const expandSection = document.getElementById('expand-low-scores-section');
+            const lowScoreCount = document.getElementById('low-score-count');
+            const lowScoreContainer = document.getElementById('low-score-jobs');
+
+            if (lowScoreJobs.length > 0) {
+                expandSection.style.display = 'block';
+                lowScoreCount.textContent = `${lowScoreJobs.length} jobs below 80% match - Click to view`;
+
+                if (lowScoreJobsExpanded) {
+                    lowScoreContainer.innerHTML = '';
+                    lowScoreJobs.forEach(job => {
+                        lowScoreContainer.appendChild(createJobCard(job));
+                    });
+                }
+            } else {
+                expandSection.style.display = 'none';
+            }
         }
     }
 
@@ -703,8 +878,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div><strong>Search:</strong> ${job.search_criteria.keywords} in ${job.search_criteria.locations}</div>
                 <div><strong>Scraped:</strong> ${new Date(job.scraped_at).toLocaleDateString('en-US', {month: 'short', day: 'numeric', year: 'numeric'})}</div>
             </div>
-            <button class="shortlist-button ${job.shortlisted ? 'shortlisted' : ''}" data-job-id="${job.id}">
-                ${job.shortlisted ? '♥ Shortlisted' : '♡ Shortlist This Job'}
+            <button class="shortlist-button ${job.shortlisted ? 'shortlisted' : ''} ${!job.search_criteria_id && job.shortlisted ? 'delete-job-btn' : ''}" data-job-id="${job.id}" data-is-archived="${!job.search_criteria_id}">
+                ${!job.search_criteria_id && job.shortlisted ? '🗑 Delete Job' : (job.shortlisted ? '♥ Shortlisted' : '♡ Shortlist This Job')}
             </button>
         `;
 
@@ -738,28 +913,94 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // Custom confirmation modal
+    const confirmModal = document.getElementById('confirm-modal');
+    const confirmMessage = document.getElementById('confirm-message');
+    const dontAskAgainCheckbox = document.getElementById('dont-ask-again');
+    const cancelConfirmButton = document.getElementById('cancel-confirm');
+    const proceedConfirmButton = document.getElementById('proceed-confirm');
+
+    // Check if user has disabled confirmation
+    const skipConfirmation = localStorage.getItem('skipScrapeConfirmation') === 'true';
+
+    cancelConfirmButton.addEventListener('click', () => {
+        confirmModal.style.display = 'none';
+    });
+
+    proceedConfirmButton.addEventListener('click', () => {
+        if (dontAskAgainCheckbox.checked) {
+            localStorage.setItem('skipScrapeConfirmation', 'true');
+        }
+        confirmModal.style.display = 'none';
+        performScrapeCleanup(currentScrapeId);
+    });
+
     // Confirm scrape
     document.getElementById('confirm-scrape-button').addEventListener('click', () => {
         if (!currentScrapeId) return;
 
-        const nonShortlisted = allJobs.filter(j => !j.shortlisted).length;
-        if (!confirm(`This will delete ${nonShortlisted} non-shortlisted jobs from this scrape. Continue?`)) {
-            return;
+        const activeChip = document.querySelector('.scrape-chip.active');
+        if (activeChip && activeChip.dataset.isProcessed === 'true') {
+            return; // Already processed, button should be disabled
         }
 
-        fetch(`/scrape/${currentScrapeId}/confirm`, {
+        const nonShortlisted = allJobs.filter(j => !j.shortlisted).length;
+
+        if (skipConfirmation) {
+            performScrapeCleanup(currentScrapeId);
+        } else {
+            confirmMessage.textContent = `This will permanently delete ${nonShortlisted} non-shortlisted job${nonShortlisted !== 1 ? 's' : ''} from this scrape. The shortlisted jobs will be kept in your archive.`;
+            confirmModal.style.display = 'block';
+        }
+    });
+
+    function performScrapeCleanup(scrapeId) {
+        const nonShortlisted = allJobs.filter(j => !j.shortlisted).length;
+
+        fetch(`/scrape/${scrapeId}/confirm`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' }
         })
         .then(response => response.json())
         .then(result => {
             if (result.status === 'success') {
-                alert(`Deleted ${result.deleted_count} jobs. ${result.remaining_jobs} shortlisted jobs remain.`);
-                location.reload();
+                // Show success message in a styled notification
+                const statusDiv = document.createElement('div');
+                statusDiv.style.cssText = 'position: fixed; top: 20px; right: 20px; background: #10b981; color: white; padding: 1rem 1.5rem; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); z-index: 1000; animation: slideIn 0.3s ease-out;';
+                statusDiv.innerHTML = `<strong>✓ Cleanup Complete</strong><br>Deleted ${result.deleted_count} jobs. ${result.archived_count} shortlisted job${result.archived_count !== 1 ? 's' : ''} moved to archived.`;
+                document.body.appendChild(statusDiv);
+
+                setTimeout(() => {
+                    statusDiv.style.animation = 'slideOut 0.3s ease-in';
+                    setTimeout(() => statusDiv.remove(), 300);
+                }, 3000);
+
+                // Remove the scraper chip from the carousel
+                const activeChip = document.querySelector('.scrape-chip.active');
+                if (activeChip) {
+                    activeChip.remove();
+                }
+
+                // Select the first remaining chip or show empty state
+                const firstChip = document.querySelector('.scrape-chip');
+                if (firstChip) {
+                    firstChip.classList.add('active');
+                    loadScrapeJobs(firstChip.dataset.scrapeId);
+                } else {
+                    // No more scrapes, reload page to show empty state
+                    location.reload();
+                }
             } else {
                 alert('Error confirming scrape');
             }
         });
+    }
+
+    // Close modal when clicking outside
+    window.addEventListener('click', (e) => {
+        if (e.target === confirmModal) {
+            confirmModal.style.display = 'none';
+        }
     });
 
     // Shortlist button handler
@@ -768,9 +1009,42 @@ document.addEventListener('DOMContentLoaded', () => {
         if (button) {
             e.stopPropagation();
             const jobId = button.dataset.jobId;
-            toggleShortlist(jobId);
+            const isArchived = button.dataset.isArchived === 'true';
+
+            // If it's an archived job with delete button, delete it
+            if (isArchived && button.classList.contains('delete-job-btn')) {
+                if (confirm('Are you sure you want to delete this job?')) {
+                    deleteJob(jobId);
+                }
+            } else {
+                // Otherwise, toggle shortlist
+                toggleShortlist(jobId);
+            }
         }
     });
+
+    // Delete job function
+    function deleteJob(jobId) {
+        fetch(`/job/${jobId}`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' }
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.status === 'success') {
+                // Remove job from allJobs array
+                allJobs = allJobs.filter(j => j.id != jobId);
+                renderJobs();
+
+                // Close modal if it was open for this job
+                if (currentJobId == jobId) {
+                    modal.style.display = 'none';
+                }
+            } else {
+                alert('Error deleting job');
+            }
+        });
+    }
 
     // Toggle shortlist function
     function toggleShortlist(jobId) {
@@ -791,18 +1065,82 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Update modal if open
                 const modalButton = document.getElementById('modal-shortlist-button');
                 const modalText = document.getElementById('modal-shortlist-text');
+                const modalContent = modal.querySelector('.modal-content');
+
                 if (modalButton && modalText && currentJobId == jobId) {
                     modalText.textContent = result.shortlisted ? '♥ Shortlisted' : '♡ Shortlist This Job';
                     if (result.shortlisted) {
                         modalButton.classList.remove('btn');
                         modalButton.classList.add('btn-danger');
+                        modalContent.classList.add('shortlisted-border');
                     } else {
                         modalButton.classList.remove('btn-danger');
                         modalButton.classList.add('btn');
+                        modalContent.classList.remove('shortlisted-border');
                     }
                 }
             }
         });
+    }
+
+    // Keyboard navigation for modal
+    document.addEventListener('keydown', (e) => {
+        // Only handle keyboard shortcuts when modal is open
+        if (modal.style.display !== 'block') return;
+
+        // Don't interfere with typing in inputs
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+        switch(e.key) {
+            case 'ArrowLeft':
+                e.preventDefault();
+                if (currentJobIndex > 0) {
+                    navigateJob(-1);
+                }
+                break;
+            case 'ArrowRight':
+                e.preventDefault();
+                if (currentJobIndex < currentVisibleJobs.length - 1) {
+                    navigateJob(1);
+                }
+                break;
+            case 'ArrowUp':
+                e.preventDefault();
+                // Scroll up in modal
+                const modalBodyUp = modal.querySelector('.modal-body-wrapper');
+                modalBodyUp.scrollBy({ top: -100, behavior: 'smooth' });
+                break;
+            case 'ArrowDown':
+                e.preventDefault();
+                // Scroll down in modal
+                const modalBodyDown = modal.querySelector('.modal-body-wrapper');
+                modalBodyDown.scrollBy({ top: 100, behavior: 'smooth' });
+                break;
+            case 'Enter':
+                e.preventDefault();
+                if (currentJobId) {
+                    toggleShortlist(currentJobId);
+                }
+                break;
+            case 'Escape':
+                e.preventDefault();
+                modal.style.display = 'none';
+                break;
+        }
+    });
+
+    // Track current index in visible jobs
+    let currentVisibleJobs = [];
+    let currentJobIndex = -1;
+
+    // Get currently visible jobs (high score or all if expanded)
+    function getVisibleJobs() {
+        const lowScoreExpanded = document.getElementById('low-score-jobs').style.display !== 'none';
+        if (lowScoreExpanded) {
+            return allJobs; // All jobs visible
+        } else {
+            return allJobs.filter(job => job.matching_score >= SCORE_THRESHOLD);
+        }
     }
 
     // Double-click to open modal
@@ -812,13 +1150,27 @@ document.addEventListener('DOMContentLoaded', () => {
         const card = e.target.closest('.job-card');
         if (card) {
             const jobId = card.dataset.jobId;
-            const job = allJobs.find(j => j.id == jobId);
-            if (job) {
+            currentVisibleJobs = getVisibleJobs();
+            currentJobIndex = currentVisibleJobs.findIndex(j => j.id == jobId);
+            if (currentJobIndex !== -1) {
                 currentJobId = jobId;
-                loadJobDetails(job);
+                loadJobDetails(currentVisibleJobs[currentJobIndex]);
             }
         }
     });
+
+    // Navigate to previous/next job
+    function navigateJob(direction) {
+        if (currentVisibleJobs.length === 0) return;
+
+        currentJobIndex += direction;
+        if (currentJobIndex < 0) currentJobIndex = 0;
+        if (currentJobIndex >= currentVisibleJobs.length) currentJobIndex = currentVisibleJobs.length - 1;
+
+        const job = currentVisibleJobs[currentJobIndex];
+        currentJobId = job.id;
+        loadJobDetails(job);
+    }
 
     // Load job details into modal
     function loadJobDetails(job) {
@@ -826,23 +1178,49 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('modal-job-company').textContent = job.company || 'N/A';
         document.getElementById('modal-job-location').textContent = job.location || 'N/A';
         document.getElementById('modal-job-score').textContent = `${job.matching_score}%`;
-        document.getElementById('modal-job-link').href = job.application_link;
         document.getElementById('modal-apply-button').href = job.application_link;
         document.getElementById('modal-job-description').textContent = job.description || 'No description available';
 
+        // Format and display timestamps
+        const scrapedDate = new Date(job.scraped_at);
+        const updatedDate = new Date(job.updated_at);
+        document.getElementById('modal-job-scraped').textContent = scrapedDate.toLocaleDateString('en-US', {month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit'});
+        document.getElementById('modal-job-updated').textContent = updatedDate.toLocaleDateString('en-US', {month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit'});
+
         const modalButton = document.getElementById('modal-shortlist-button');
         const modalText = document.getElementById('modal-shortlist-text');
+        const modalContent = modal.querySelector('.modal-content');
+
         modalText.textContent = job.shortlisted ? '♥ Shortlisted' : '♡ Shortlist This Job';
         if (job.shortlisted) {
             modalButton.classList.remove('btn');
             modalButton.classList.add('btn-danger');
+            modalContent.classList.add('shortlisted-border');
         } else {
             modalButton.classList.remove('btn-danger');
             modalButton.classList.add('btn');
+            modalContent.classList.remove('shortlisted-border');
+        }
+
+        // Update navigation buttons
+        document.getElementById('prev-job-button').disabled = currentJobIndex <= 0;
+        document.getElementById('next-job-button').disabled = currentJobIndex >= currentVisibleJobs.length - 1;
+
+        // Update position indicator
+        document.getElementById('modal-job-position').textContent = `Job ${currentJobIndex + 1} of ${currentVisibleJobs.length}`;
+
+        // Scroll modal to top
+        const modalBody = modal.querySelector('.modal-body-wrapper');
+        if (modalBody) {
+            modalBody.scrollTop = 0;
         }
 
         modal.style.display = 'block';
     }
+
+    // Navigation button handlers
+    document.getElementById('prev-job-button').addEventListener('click', () => navigateJob(-1));
+    document.getElementById('next-job-button').addEventListener('click', () => navigateJob(1));
 
     // Modal shortlist button
     document.getElementById('modal-shortlist-button').addEventListener('click', () => {
@@ -860,7 +1238,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Load first scrape on page load
     {% if scrapes %}
-    loadScrapeJobs({{ scrapes[0].id }});
+    const firstScrape = document.querySelector('.scrape-chip');
+    if (firstScrape) {
+        loadScrapeJobs({{ scrapes[0].id }});
+    }
     {% endif %}
 });
 </script>
