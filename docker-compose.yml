@@ -22,6 +22,7 @@ services:
     depends_on:
       - db
       - selenium
+      - ollama
     environment:
       - TZ=Europe/Berlin
       - DATABASE_URL=postgresql://user:password@db:5432/jobs
@@ -36,6 +37,23 @@ services:
     restart: always
     ports:
       - '4444:4444'
+
+  ollama: 
+    image: ollama/ollama:latest
+    container_name: ollama
+    volumes:
+    - ./olama:root.olama
+    ports:
+    - 11434:11434
+    environment:
+    - OOLAMA_KEEP_ALIVE=24h
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all 
+              capabilities: [gpu]
 
 volumes:
   postgres_data:
