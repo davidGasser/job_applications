@@ -17,6 +17,9 @@ from flask_sqlalchemy import SQLAlchemy
 from markupsafe import Markup
 from scrapers import LinkedInScraper
 from flask_socketio import SocketIO
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
+import atexit
 
 from datetime import datetime
 
@@ -56,6 +59,12 @@ class SearchCriteria(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     is_processed = db.Column(db.Boolean, nullable=False, default=False)
     is_template = db.Column(db.Boolean, nullable=False, default=True)  # True = saved config, False = search run
+    schedule_enabled = db.Column(db.Boolean, nullable=False, default=False)
+    schedule_hour = db.Column(db.Integer, nullable=True)  # 0-23
+    schedule_minute = db.Column(db.Integer, nullable=True, default=0)  # 0-59
+    schedule_day_of_week = db.Column(db.Integer, nullable=True)  # 0-6 for weekly (Monday=0)
+    schedule_day_of_month = db.Column(db.Integer, nullable=True)  # 1-31 for monthly
+    last_run = db.Column(db.DateTime, nullable=True)
 
 class Job(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -105,10 +114,20 @@ def create_search_criteria():
             distance_in_km=data.get('distance_in_km'),
             date_posted=data.get('date_posted'),
             exp_level=data.get('exp_level'),
-            job_type=data.get('job_type')
+            job_type=data.get('job_type'),
+            schedule_enabled=data.get('schedule_enabled', False),
+            schedule_hour=data.get('schedule_hour'),
+            schedule_minute=data.get('schedule_minute', 0),
+            schedule_day_of_week=data.get('schedule_day_of_week'),
+            schedule_day_of_month=data.get('schedule_day_of_month')
         )
         db.session.add(new_criteria)
         db.session.commit()
+
+        # Sync scheduler if scheduling was enabled
+        if new_criteria.schedule_enabled:
+            sync_scheduler_jobs()
+
         return jsonify({'status': 'success', 'id': new_criteria.id})
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
@@ -124,7 +143,13 @@ def get_search_criteria(criteria_id):
             'distance_in_km': criteria.distance_in_km,
             'date_posted': criteria.date_posted,
             'exp_level': criteria.exp_level,
-            'job_type': criteria.job_type
+            'job_type': criteria.job_type,
+            'schedule_enabled': criteria.schedule_enabled,
+            'schedule_hour': criteria.schedule_hour,
+            'schedule_minute': criteria.schedule_minute,
+            'schedule_day_of_week': criteria.schedule_day_of_week,
+            'schedule_day_of_month': criteria.schedule_day_of_month,
+            'last_run': criteria.last_run.isoformat() if criteria.last_run else None
         })
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
@@ -140,7 +165,24 @@ def update_search_criteria(criteria_id):
         criteria.date_posted = data.get('date_posted', criteria.date_posted)
         criteria.exp_level = data.get('exp_level', criteria.exp_level)
         criteria.job_type = data.get('job_type', criteria.job_type)
+
+        # Update scheduling fields if provided
+        if 'schedule_enabled' in data:
+            criteria.schedule_enabled = data['schedule_enabled']
+        if 'schedule_hour' in data:
+            criteria.schedule_hour = data['schedule_hour']
+        if 'schedule_minute' in data:
+            criteria.schedule_minute = data['schedule_minute']
+        if 'schedule_day_of_week' in data:
+            criteria.schedule_day_of_week = data['schedule_day_of_week']
+        if 'schedule_day_of_month' in data:
+            criteria.schedule_day_of_month = data['schedule_day_of_month']
+
         db.session.commit()
+
+        # Sync scheduler whenever criteria is updated
+        sync_scheduler_jobs()
+
         return jsonify({'status': 'success'})
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
@@ -158,6 +200,10 @@ def delete_search_criteria(criteria_id):
         # Now delete the search criteria
         db.session.delete(criteria)
         db.session.commit()
+
+        # Sync scheduler to remove any scheduled jobs for this criteria
+        sync_scheduler_jobs()
+
         return jsonify({'status': 'success', 'archived_jobs': len(jobs)})
     except Exception as e:
         db.session.rollback()
@@ -175,7 +221,13 @@ def get_search_criterias():
             'distance_in_km': c.distance_in_km,
             'date_posted': c.date_posted,
             'exp_level': c.exp_level,
-            'job_type': c.job_type
+            'job_type': c.job_type,
+            'schedule_enabled': c.schedule_enabled,
+            'schedule_hour': c.schedule_hour,
+            'schedule_minute': c.schedule_minute,
+            'schedule_day_of_week': c.schedule_day_of_week,
+            'schedule_day_of_month': c.schedule_day_of_month,
+            'last_run': c.last_run.isoformat() if c.last_run else None
         } for c in criterias])
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
@@ -565,6 +617,7 @@ def handle_stop_scrape():
 def run_scraping_task(data):
     """Background task to run the scraper."""
     global scraping_active
+    scraping_active = True  # Set active flag for both manual and scheduled scrapes
     try:
         with app.app_context():
             # Send initial confirmation that scraping started
@@ -650,16 +703,105 @@ def run_scraping_task(data):
 
 @socketio.on('start_scrape')
 def handle_start_scrape(json):
-    global scraping_active
-    scraping_active = True
     data = json.get('data')
     # Run scraping in background thread to avoid blocking SocketIO
     socketio.start_background_task(run_scraping_task, data)
+
+# --- APScheduler Setup ---
+scheduler = BackgroundScheduler()
+scheduler.start()
+
+# Shut down the scheduler when exiting the app
+atexit.register(lambda: scheduler.shutdown())
+
+def run_scheduled_scrape(criteria_id):
+    """Function called by APScheduler to run a scheduled scrape."""
+    with app.app_context():
+        try:
+            criteria = SearchCriteria.query.get(criteria_id)
+            if not criteria or not criteria.schedule_enabled:
+                logging.warning(f"Skipping scheduled scrape for criteria {criteria_id}: not found or disabled")
+                return
+
+            logging.info(f"Running scheduled scrape for: {criteria.keywords}")
+
+            # Update last_run timestamp
+            criteria.last_run = datetime.utcnow()
+            db.session.commit()
+
+            # Create the scraper data object
+            data = {
+                'id': criteria_id,
+                'pages': 1  # Default to 1 page for scheduled scrapes
+            }
+
+            # Run the scraping task directly (not via SocketIO since this is background)
+            run_scraping_task(data)
+
+        except Exception as e:
+            logging.error(f"Error in scheduled scrape for criteria {criteria_id}: {e}")
+
+def sync_scheduler_jobs():
+    """Synchronize APScheduler jobs with enabled SearchCriteria in database."""
+    with app.app_context():
+        # Remove all existing jobs
+        scheduler.remove_all_jobs()
+
+        # Add jobs for all enabled schedules
+        enabled_criteria = SearchCriteria.query.filter_by(schedule_enabled=True, is_template=True).all()
+
+        for criteria in enabled_criteria:
+            if criteria.schedule_hour is None:
+                continue  # Skip if no time is set
+
+            job_id = f"scrape_{criteria.id}"
+
+            # Determine frequency based on date_posted
+            if criteria.date_posted == 'past 24 hours':
+                # Daily schedule
+                trigger = CronTrigger(
+                    hour=criteria.schedule_hour,
+                    minute=criteria.schedule_minute or 0
+                )
+            elif criteria.date_posted == 'past week':
+                # Weekly schedule
+                trigger = CronTrigger(
+                    day_of_week=criteria.schedule_day_of_week or 0,  # Default to Monday
+                    hour=criteria.schedule_hour,
+                    minute=criteria.schedule_minute or 0
+                )
+            elif criteria.date_posted == 'past month':
+                # Monthly schedule
+                trigger = CronTrigger(
+                    day=criteria.schedule_day_of_month or 1,  # Default to 1st of month
+                    hour=criteria.schedule_hour,
+                    minute=criteria.schedule_minute or 0
+                )
+            else:
+                # Default to weekly if date_posted not specified
+                trigger = CronTrigger(
+                    day_of_week=criteria.schedule_day_of_week or 0,
+                    hour=criteria.schedule_hour,
+                    minute=criteria.schedule_minute or 0
+                )
+
+            scheduler.add_job(
+                func=run_scheduled_scrape,
+                trigger=trigger,
+                args=[criteria.id],
+                id=job_id,
+                name=f"Scrape: {criteria.keywords}",
+                replace_existing=True
+            )
+            logging.info(f"Scheduled job added: {criteria.keywords} - {trigger}")
 
 # --- Main Execution ---
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
+        # Sync scheduled jobs on startup
+        sync_scheduler_jobs()
+        logging.info("Scheduler initialized and jobs synced")
 
     # Disable Flask's reloader when using debugpy to avoid port conflicts
     use_reloader = os.environ.get('ENABLE_DEBUGPY', '0') != '1'

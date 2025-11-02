@@ -279,6 +279,44 @@
                             {% endfor %}
                         </div>
                     </div>
+
+                    <div class="form-group" style="border-top: 1px solid var(--border-color); padding-top: 1.25rem; margin-top: 0.5rem;">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                            <input type="checkbox" id="schedule-enabled" style="width: auto; cursor: pointer;">
+                            <span>Enable Automatic Scheduling</span>
+                        </label>
+                    </div>
+
+                    <div id="schedule-options" style="display: none;">
+                        <div class="form-group">
+                            <label for="schedule-time">Run Time</label>
+                            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                <input type="number" id="schedule-hour" min="0" max="23" placeholder="HH" style="width: 80px; text-align: center;">
+                                <span>:</span>
+                                <input type="number" id="schedule-minute" min="0" max="59" value="0" placeholder="MM" style="width: 80px; text-align: center;">
+                            </div>
+                        </div>
+
+                        <div class="form-group" id="schedule-day-of-week-group" style="display: none;">
+                            <label for="schedule-day-of-week">Day of Week</label>
+                            <select id="schedule-day-of-week">
+                                <option value="0">Monday</option>
+                                <option value="1">Tuesday</option>
+                                <option value="2">Wednesday</option>
+                                <option value="3">Thursday</option>
+                                <option value="4">Friday</option>
+                                <option value="5">Saturday</option>
+                                <option value="6">Sunday</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group" id="schedule-day-of-month-group" style="display: none;">
+                            <label for="schedule-day-of-month">Day of Month</label>
+                            <input type="number" id="schedule-day-of-month" min="1" max="31" value="1" placeholder="1-31">
+                        </div>
+
+                        <div id="schedule-frequency-hint" style="font-size: 0.85rem; color: var(--text-secondary); padding: 0.75rem; background-color: var(--primary-light); border-radius: 8px; margin-top: 0.5rem;"></div>
+                    </div>
                 </div>
 
                 <div class="form-actions">
@@ -381,12 +419,52 @@ document.addEventListener('DOMContentLoaded', () => {
 
     setupToggleButtons();
 
+    // Scheduling UI logic
+    const scheduleEnabledCheckbox = document.getElementById('schedule-enabled');
+    const scheduleOptions = document.getElementById('schedule-options');
+    const datePostedSelect = document.getElementById('date_posted');
+    const scheduleDayOfWeekGroup = document.getElementById('schedule-day-of-week-group');
+    const scheduleDayOfMonthGroup = document.getElementById('schedule-day-of-month-group');
+    const scheduleFrequencyHint = document.getElementById('schedule-frequency-hint');
+
+    scheduleEnabledCheckbox.addEventListener('change', () => {
+        scheduleOptions.style.display = scheduleEnabledCheckbox.checked ? 'block' : 'none';
+        updateScheduleFrequencyUI();
+    });
+
+    datePostedSelect.addEventListener('change', updateScheduleFrequencyUI);
+
+    function updateScheduleFrequencyUI() {
+        if (!scheduleEnabledCheckbox.checked) return;
+
+        const datePosted = datePostedSelect.value;
+
+        // Hide both by default
+        scheduleDayOfWeekGroup.style.display = 'none';
+        scheduleDayOfMonthGroup.style.display = 'none';
+
+        if (datePosted === 'past 24 hours') {
+            scheduleFrequencyHint.textContent = 'This scraper will run daily at the specified time.';
+        } else if (datePosted === 'past week') {
+            scheduleDayOfWeekGroup.style.display = 'block';
+            scheduleFrequencyHint.textContent = 'This scraper will run weekly on the specified day and time.';
+        } else if (datePosted === 'past month') {
+            scheduleDayOfMonthGroup.style.display = 'block';
+            scheduleFrequencyHint.textContent = 'This scraper will run monthly on the specified day and time.';
+        } else {
+            scheduleFrequencyHint.textContent = 'Select a "Date Posted" filter to configure scheduling frequency.';
+        }
+    }
+
     function openModalForCreate() {
         scraperIdInput.value = '';
         scraperModalTitle.textContent = 'Add Scraper Configuration';
         scraperForm.reset();
         // Clear all toggle buttons
         document.querySelectorAll('.toggle-button').forEach(btn => btn.classList.remove('active'));
+        // Reset scheduling fields
+        scheduleEnabledCheckbox.checked = false;
+        scheduleOptions.style.display = 'none';
         scraperModal.style.display = 'block';
     }
 
@@ -421,6 +499,16 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
+        // Set scheduling fields
+        scheduleEnabledCheckbox.checked = criteria.schedule_enabled || false;
+        document.getElementById('schedule-hour').value = criteria.schedule_hour || '';
+        document.getElementById('schedule-minute').value = criteria.schedule_minute || 0;
+        document.getElementById('schedule-day-of-week').value = criteria.schedule_day_of_week || 0;
+        document.getElementById('schedule-day-of-month').value = criteria.schedule_day_of_month || 1;
+
+        scheduleOptions.style.display = criteria.schedule_enabled ? 'block' : 'none';
+        updateScheduleFrequencyUI();
+
         scraperModal.style.display = 'block';
     }
 
@@ -451,10 +539,40 @@ document.addEventListener('DOMContentLoaded', () => {
             // Create a proper filter display string
             const filterDisplay = filters.length > 0 ? filters.join(' • ') : '';
 
+            // Generate schedule display
+            let scheduleDisplay = '';
+            if (criteria.schedule_enabled) {
+                const hour = String(criteria.schedule_hour || 0).padStart(2, '0');
+                const minute = String(criteria.schedule_minute || 0).padStart(2, '0');
+                let scheduleText = '';
+
+                if (criteria.date_posted === 'past 24 hours') {
+                    scheduleText = `Daily at ${hour}:${minute}`;
+                } else if (criteria.date_posted === 'past week') {
+                    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+                    const dayName = days[criteria.schedule_day_of_week || 0];
+                    scheduleText = `Weekly on ${dayName} at ${hour}:${minute}`;
+                } else if (criteria.date_posted === 'past month') {
+                    const day = criteria.schedule_day_of_month || 1;
+                    scheduleText = `Monthly on day ${day} at ${hour}:${minute}`;
+                } else {
+                    scheduleText = `Scheduled at ${hour}:${minute}`;
+                }
+
+                const lastRun = criteria.last_run ? new Date(criteria.last_run).toLocaleString() : 'Never';
+                scheduleDisplay = `
+                    <div style="background-color: #ecfdf5; border: 1px solid #10b981; border-radius: 8px; padding: 0.75rem; margin-top: 0.5rem;">
+                        <p style="margin: 0; font-size: 0.85rem; color: #047857; font-weight: 600;">⏰ ${scheduleText}</p>
+                        <p style="margin: 0.25rem 0 0 0; font-size: 0.75rem; color: #059669;">Last run: ${lastRun}</p>
+                    </div>
+                `;
+            }
+
             card.innerHTML = `
                 <h3>${criteria.keywords}</h3>
                 <p><strong>Locations:</strong> ${criteria.locations}</p>
                 ${filterDisplay ? `<p style="font-size: 0.85rem; color: var(--text-secondary);"><strong>Filters:</strong> ${filterDisplay}</p>` : ''}
+                ${scheduleDisplay}
                 <div class="actions">
                     <button class="btn-run run-scraper">▶ Run</button>
                     <button class="btn-secondary edit-scraper">Edit</button>
@@ -499,7 +617,12 @@ document.addEventListener('DOMContentLoaded', () => {
             distance_in_km: document.getElementById('distance').value || null,
             date_posted: document.getElementById('date_posted').value || null,
             exp_level: expLevels.length > 0 ? expLevels.join(', ') : null,
-            job_type: jobTypes.length > 0 ? jobTypes.join(', ') : null
+            job_type: jobTypes.length > 0 ? jobTypes.join(', ') : null,
+            schedule_enabled: scheduleEnabledCheckbox.checked,
+            schedule_hour: scheduleEnabledCheckbox.checked ? parseInt(document.getElementById('schedule-hour').value) || null : null,
+            schedule_minute: scheduleEnabledCheckbox.checked ? parseInt(document.getElementById('schedule-minute').value) || 0 : null,
+            schedule_day_of_week: scheduleEnabledCheckbox.checked ? parseInt(document.getElementById('schedule-day-of-week').value) || null : null,
+            schedule_day_of_month: scheduleEnabledCheckbox.checked ? parseInt(document.getElementById('schedule-day-of-month').value) || null : null
         };
 
         const url = id ? `/search_criteria/${id}` : '/search_criteria';

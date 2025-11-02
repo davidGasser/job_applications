@@ -23,6 +23,7 @@ services:
       - db
       - selenium
     environment:
+      - TZ=Europe/Berlin
       - DATABASE_URL=postgresql://user:password@db:5432/jobs
       - FLASK_APP=src/main.py
       - FLASK_DEBUG=1

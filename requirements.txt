@@ -12,3 +12,4 @@ Flask-SocketIO
 gevent
 gevent-websocket
 debugpy
+APScheduler
