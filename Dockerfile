@@ -4,6 +4,11 @@ FROM python:3.11-slim
 # Set the working directory in the container
 WORKDIR /app
 
+# Install system dependencies for pdf2image (poppler-utils)
+RUN apt-get update && apt-get install -y \
+    poppler-utils \
+    && rm -rf /var/lib/apt/lists/*
+
 # Copy the dependencies file to the working directory
 COPY requirements.txt .
 
@@ -14,5 +19,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY src/ ./src/
 
 # Specify the command to run on container start
-#CMD ["python", "src/main.py"]
-CMD ["python", "src/cv_ocr.py"]
+CMD ["python", "src/main.py"]
+

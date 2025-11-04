@@ -29,6 +29,7 @@ services:
       - FLASK_APP=src/main.py
       - FLASK_DEBUG=1
       - ENABLE_DEBUGPY=1
+      - OLLAMA_HOST=http://ollama:11434
     command: python -Xfrozen_modules=off src/main.py
 
   selenium:
@@ -38,22 +39,23 @@ services:
     ports:
       - '4444:4444'
 
-  ollama: 
+  ollama:
     image: ollama/ollama:latest
     container_name: ollama
     volumes:
-    - ./olama:root.olama
+      - ollama:/root/.ollama
     ports:
-    - 11434:11434
+      - 11434:11434
     environment:
-    - OOLAMA_KEEP_ALIVE=24h
+      - OLLAMA_KEEP_ALIVE=24h
     deploy:
       resources:
         reservations:
           devices:
             - driver: nvidia
-              count: all 
+              count: all
               capabilities: [gpu]
 
 volumes:
   postgres_data:
+  ollama:

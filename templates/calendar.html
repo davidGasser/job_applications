@@ -9,6 +9,16 @@
         padding: 2rem;
         max-width: 1400px;
         margin: 0 auto;
+        height: calc(100vh - 4rem);
+        overflow-y: auto;
+        overflow-x: hidden;
+        /* Hide scrollbar for Chrome, Safari and Opera */
+        scrollbar-width: none; /* Firefox */
+        -ms-overflow-style: none;  /* IE and Edge */
+    }
+
+    #calendar-container::-webkit-scrollbar {
+        display: none;  /* Chrome, Safari and Opera */
     }
 
     .calendar-header {
@@ -25,9 +35,10 @@
     #calendar {
         background-color: var(--card-background);
         border-radius: 12px;
-        padding: 2rem;
+        padding: 1.5rem;
         box-shadow: var(--shadow-md);
         border: 1px solid var(--border-color);
+        overflow: visible;
     }
 
     /* FullCalendar Customization */
@@ -125,8 +136,49 @@
         box-shadow: var(--shadow-sm);
     }
 
+    /* Color coding for different event categories */
+    .fc .fc-event.event-deadline {
+        background-color: #ef4444;
+        border-color: #dc2626;
+    }
+
+    .fc .fc-event.event-deadline:hover {
+        background-color: #dc2626;
+    }
+
+    .fc .fc-event.event-interview {
+        background-color: #10b981;
+        border-color: #059669;
+    }
+
+    .fc .fc-event.event-interview:hover {
+        background-color: #059669;
+    }
+
+    .fc .fc-event.event-followup {
+        background-color: #f59e0b;
+        border-color: #d97706;
+    }
+
+    .fc .fc-event.event-followup:hover {
+        background-color: #d97706;
+    }
+
+    .fc .fc-event.event-other {
+        background-color: #8b5cf6;
+        border-color: #7c3aed;
+    }
+
+    .fc .fc-event.event-other:hover {
+        background-color: #7c3aed;
+    }
+
     .fc .fc-event-title {
         font-weight: 500;
+        white-space: pre-line !important;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        line-height: 1.2;
     }
 
     .fc .fc-daygrid-event-dot {
@@ -199,7 +251,6 @@
     <div id="calendar-container">
         <div class="calendar-header">
             <h1>Job Application Timeline</h1>
-            <p style="color: var(--text-secondary); margin-top: 0.5rem;">Track important dates, deadlines, and interviews</p>
         </div>
         <div id='calendar'></div>
     </div>
@@ -259,46 +310,19 @@ document.addEventListener('DOMContentLoaded', function() {
             right: 'dayGridMonth,dayGridWeek,dayGridDay'
         },
         events: '/job_dates',
+        eventDidMount: function(info) {
+            // Add category class for color coding
+            const category = info.event.extendedProps.category;
+            if (category) {
+                info.el.classList.add(`event-${category.toLowerCase()}`);
+            }
+        },
         eventClick: function(info) {
-            // Populate modal with event details
-            const event = info.event;
-            const props = event.extendedProps;
-
-            document.getElementById('event-modal-title').textContent = event.title;
-            document.getElementById('event-title').textContent = event.title;
-            document.getElementById('event-job-title').textContent = props.job_title || 'N/A';
-
-            // Format date
-            const eventDate = new Date(event.start);
-            document.getElementById('event-date').textContent = eventDate.toLocaleString('en-US', {
-                weekday: 'long',
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-            });
-
-            // Show/hide description
-            const descriptionRow = document.getElementById('event-description-row');
-            const descriptionValue = document.getElementById('event-description');
-            if (props.description) {
-                descriptionValue.textContent = props.description;
-                descriptionRow.style.display = 'flex';
-            } else {
-                descriptionRow.style.display = 'none';
+            // Navigate directly to kanban with job ID
+            const jobId = info.event.extendedProps.job_id;
+            if (jobId) {
+                window.location.href = `/kanban?job=${jobId}`;
             }
-
-            // Show/hide job link
-            const jobLinkRow = document.getElementById('event-job-link-row');
-            if (props.job_id) {
-                jobLinkRow.style.display = 'flex';
-            } else {
-                jobLinkRow.style.display = 'none';
-            }
-
-            // Show modal
-            eventModal.style.display = 'block';
         },
         height: 'auto',
         aspectRatio: 1.8,

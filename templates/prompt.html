@@ -1,0 +1,416 @@
+{% extends "base.html" %}
+
+{% block title %}CV & Job Preferences - {{ super() }}{% endblock %}
+
+{% block head %}
+<style>
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+    }
+
+    .upload-section {
+        background-color: var(--card-background);
+        border: 2px dashed var(--border-color);
+        border-radius: 12px;
+        padding: 2rem;
+        text-align: center;
+        margin-bottom: 2rem;
+        transition: all 0.2s;
+    }
+
+    .upload-section:hover {
+        border-color: var(--primary-color);
+        background-color: var(--primary-light);
+    }
+
+    .upload-section.has-file {
+        border-color: var(--success-color);
+        border-style: solid;
+    }
+
+    .upload-input {
+        display: none;
+    }
+
+    .upload-button {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        cursor: pointer;
+    }
+
+    .upload-info {
+        margin-top: 0.5rem;
+        font-size: 0.9rem;
+        color: var(--text-secondary);
+    }
+
+    .filename-display {
+        margin-top: 1rem;
+        padding: 0.75rem;
+        background-color: var(--background-color);
+        border-radius: 8px;
+        font-weight: 500;
+        color: var(--success-color);
+    }
+
+    /* Loading Animation */
+    .loading-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        backdrop-filter: blur(4px);
+        z-index: 1000;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .loading-overlay.active {
+        display: flex;
+    }
+
+    .loading-content {
+        background-color: white;
+        padding: 2rem;
+        border-radius: 12px;
+        text-align: center;
+        box-shadow: var(--shadow-lg);
+    }
+
+    .spinner {
+        border: 4px solid var(--border-color);
+        border-top: 4px solid var(--primary-color);
+        border-radius: 50%;
+        width: 50px;
+        height: 50px;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 1rem;
+    }
+
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+
+    /* Side-by-side comparison */
+    .comparison-section {
+        display: none;
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .comparison-section.active {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .comparison-panel {
+        background-color: var(--card-background);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .comparison-header {
+        padding: 1rem 1.5rem;
+        background-color: var(--background-color);
+        border-bottom: 1px solid var(--border-color);
+        font-weight: 600;
+        font-size: 0.95rem;
+        color: var(--text-color);
+    }
+
+    .comparison-content {
+        padding: 1.5rem;
+        overflow-y: auto;
+        max-height: 500px;
+        flex: 1;
+    }
+
+    .comparison-content textarea {
+        min-height: 450px;
+        resize: vertical;
+        font-family: monospace;
+        font-size: 0.9rem;
+        line-height: 1.6;
+    }
+
+    .cv-display {
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        font-family: monospace;
+        font-size: 0.9rem;
+        line-height: 1.6;
+        color: var(--text-color);
+    }
+
+    /* Job Preferences Section */
+    .preferences-section {
+        background-color: var(--card-background);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 2rem;
+        margin-bottom: 2rem;
+    }
+
+    .preferences-section h2 {
+        margin-top: 0;
+        margin-bottom: 0.5rem;
+        font-size: 1.25rem;
+    }
+
+    .preferences-section textarea {
+        min-height: 200px;
+        resize: vertical;
+    }
+
+    /* Action Buttons */
+    .action-buttons {
+        display: flex;
+        gap: 1rem;
+        justify-content: flex-end;
+    }
+
+    .save-status {
+        padding: 0.75rem 1.25rem;
+        border-radius: 8px;
+        font-size: 0.9rem;
+        font-weight: 500;
+        display: none;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .save-status.success {
+        background-color: #d1fae5;
+        color: #065f46;
+        display: inline-flex;
+    }
+
+    .save-status.error {
+        background-color: #fee2e2;
+        color: #991b1b;
+        display: inline-flex;
+    }
+
+    /* Mobile Responsive */
+    @media (max-width: 968px) {
+        .comparison-section.active {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+    <div class="page-header">
+        <h1>CV & Job Preferences</h1>
+    </div>
+
+    <!-- Upload Section -->
+    <div class="upload-section" id="upload-section">
+        <input type="file" id="cv-file-input" class="upload-input" accept=".pdf,.doc,.docx,.txt">
+        <label for="cv-file-input" class="upload-button btn">
+            <span>📄</span>
+            <span>Upload CV / Resume</span>
+        </label>
+        <div class="upload-info">Supported formats: PDF, DOC, DOCX, TXT</div>
+        <div id="filename-display" class="filename-display" style="display: none;"></div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loading-overlay">
+        <div class="loading-content">
+            <div class="spinner"></div>
+            <h3>Extracting CV Text...</h3>
+            <p>This may take a few moments</p>
+        </div>
+    </div>
+
+    <!-- Side-by-side Comparison -->
+    <div class="comparison-section" id="comparison-section">
+        <div class="comparison-panel">
+            <div class="comparison-header">Original CV Text</div>
+            <div class="comparison-content">
+                <div class="cv-display" id="original-cv-text">No CV uploaded yet</div>
+            </div>
+        </div>
+        <div class="comparison-panel">
+            <div class="comparison-header">Editable CV Text</div>
+            <div class="comparison-content">
+                <textarea id="editable-cv-text" placeholder="Upload a CV to see extracted text here. You can edit this text as needed."></textarea>
+            </div>
+        </div>
+    </div>
+
+    <!-- Job Preferences Section -->
+    <div class="preferences-section">
+        <h2>Job Preferences & Search Criteria</h2>
+        <div class="form-group">
+            <textarea
+                id="job-preferences"
+                placeholder="Example: I'm looking for full-time software engineering positions in AI/ML, preferably remote or in the Bay Area. Interested in roles that involve Python, TensorFlow, and large-scale data processing. Open to both IC and tech lead positions with competitive compensation..."
+            ></textarea>
+        </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="action-buttons">
+        <div class="save-status" id="save-status"></div>
+        <button type="button" class="btn" id="save-button">Save Changes</button>
+    </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const fileInput = document.getElementById('cv-file-input');
+    const uploadSection = document.getElementById('upload-section');
+    const filenameDisplay = document.getElementById('filename-display');
+    const loadingOverlay = document.getElementById('loading-overlay');
+    const comparisonSection = document.getElementById('comparison-section');
+    const originalCvText = document.getElementById('original-cv-text');
+    const editableCvText = document.getElementById('editable-cv-text');
+    const jobPreferences = document.getElementById('job-preferences');
+    const saveButton = document.getElementById('save-button');
+    const saveStatus = document.getElementById('save-status');
+
+    let currentProfile = null;
+
+    // Load existing profile data
+    loadProfile();
+
+    function loadProfile() {
+        fetch('/profile')
+            .then(response => response.json())
+            .then(data => {
+                currentProfile = data;
+
+                if (data.cv_text) {
+                    originalCvText.textContent = data.cv_text;
+                    editableCvText.value = data.cv_text;
+                    comparisonSection.classList.add('active');
+                }
+
+                if (data.cv_filename) {
+                    filenameDisplay.textContent = `Current CV: ${data.cv_filename}`;
+                    filenameDisplay.style.display = 'block';
+                    uploadSection.classList.add('has-file');
+                }
+
+                if (data.job_preferences) {
+                    jobPreferences.value = data.job_preferences;
+                }
+            })
+            .catch(error => {
+                console.error('Error loading profile:', error);
+            });
+    }
+
+    // File upload handler
+    fileInput.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        // Show loading overlay
+        loadingOverlay.classList.add('active');
+
+        // Create FormData for upload
+        const formData = new FormData();
+        formData.append('cv_file', file);
+
+        try {
+            const response = await fetch('/profile/upload', {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await response.json();
+
+            if (result.status === 'success') {
+                // Update UI with extracted text
+                filenameDisplay.textContent = `Uploaded: ${result.filename}`;
+                filenameDisplay.style.display = 'block';
+                uploadSection.classList.add('has-file');
+
+                originalCvText.textContent = result.extracted_text;
+                editableCvText.value = result.extracted_text;
+                comparisonSection.classList.add('active');
+
+                // Auto-save the extracted text
+                await saveProfile();
+            } else {
+                showSaveStatus('error', 'Error uploading CV: ' + result.message);
+            }
+        } catch (error) {
+            console.error('Upload error:', error);
+            showSaveStatus('error', 'Upload failed: ' + error.message);
+        } finally {
+            loadingOverlay.classList.remove('active');
+        }
+    });
+
+    // Save button handler
+    saveButton.addEventListener('click', saveProfile);
+
+    async function saveProfile() {
+        try {
+            const response = await fetch('/profile', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    cv_text: editableCvText.value,
+                    job_preferences: jobPreferences.value
+                })
+            });
+
+            const result = await response.json();
+
+            if (result.status === 'success') {
+                showSaveStatus('success', 'Changes saved successfully!');
+                // Update original text to match edited version
+                originalCvText.textContent = editableCvText.value;
+            } else {
+                showSaveStatus('error', 'Error saving: ' + result.message);
+            }
+        } catch (error) {
+            console.error('Save error:', error);
+            showSaveStatus('error', 'Save failed: ' + error.message);
+        }
+    }
+
+    function showSaveStatus(type, message) {
+        saveStatus.className = `save-status ${type}`;
+        saveStatus.textContent = message;
+
+        // Auto-hide after 3 seconds
+        setTimeout(() => {
+            saveStatus.className = 'save-status';
+        }, 3000);
+    }
+
+    // Auto-save on text change (debounced)
+    let saveTimeout;
+    function debouncedSave() {
+        clearTimeout(saveTimeout);
+        saveTimeout = setTimeout(() => {
+            saveProfile();
+        }, 2000); // Save 2 seconds after user stops typing
+    }
+
+    editableCvText.addEventListener('input', debouncedSave);
+    jobPreferences.addEventListener('input', debouncedSave);
+});
+</script>
+{% endblock %}

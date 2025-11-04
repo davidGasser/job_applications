@@ -122,7 +122,7 @@
     #job-details-modal .modal-content {
         width: 80%;
         max-width: none;
-        max-height: 85vh;
+        height: 90vh;
         overflow: hidden;
         display: flex;
         flex-direction: column;
@@ -133,14 +133,15 @@
     #job-details-modal .modal-body-wrapper {
         overflow-y: auto;
         flex: 1;
-        padding: 0 2rem;
+        padding: 0 1.5rem;
     }
 
     .modal-header {
         display: flex;
         align-items: center;
-        gap: 1rem;
-        padding: 2rem 2rem 1rem 2rem;
+        gap: 0.75rem;
+        padding: 0 1.5rem 0.35rem 1.5rem;
+        margin-top: 0 !important;
         border-top-left-radius: 8px;
         border-top-right-radius: 8px;
         flex-shrink: 0;
@@ -150,18 +151,29 @@
         flex: 1;
         display: flex;
         flex-direction: column;
-        gap: 0.5rem;
+        gap: 0.25rem;
+        margin-bottom: 0 !important;
+    }
+
+    .modal-header-content * {
+        margin-bottom: 0 !important;
     }
 
     .modal-header h2 {
-        margin: 0;
+        margin: 0 !important;
         font-size: 1.5rem;
+        line-height: 1.3;
+    }
+
+    #job-details-modal .modal-header {
+        padding-bottom: 0 !important;
+        margin-bottom: 0 !important;
     }
 
     .modal-subheader {
         display: flex;
         align-items: center;
-        gap: 1rem;
+        gap: 0.75rem;
         flex-wrap: wrap;
         font-size: 0.95rem;
         color: var(--text-secondary);
@@ -178,19 +190,40 @@
     }
 
     .modal-actions {
-        padding: 1.5rem 2rem 2rem 2rem;
+        padding: 1rem 1.5rem 0 1.5rem;
+        margin-bottom: 0 !important;
         flex-shrink: 0;
     }
 
     .modal-section {
-        margin-bottom: 1.5rem;
+        margin-bottom: 1.25rem;
     }
 
     .modal-section h3 {
-        font-size: 1.2rem;
+        font-size: 1rem;
         font-weight: 600;
-        margin: 0 0 1rem 0;
+        margin: 0 0 0.75rem 0;
         color: var(--text-color);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .btn-inline {
+        background: none;
+        border: 1px solid var(--border-color);
+        color: var(--primary-color);
+        padding: 0.15rem 0.5rem;
+        font-size: 0.85rem;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-inline:hover {
+        background-color: var(--primary-color);
+        color: white;
+        border-color: var(--primary-color);
     }
 
     .job-description-box {
@@ -230,37 +263,54 @@
     .contact-list, .date-list {
         display: flex;
         flex-direction: column;
-        gap: 0.75rem;
+        gap: 0.35rem;
     }
 
     .contact-item, .date-item {
         display: flex;
         align-items: center;
-        gap: 0.75rem;
-        padding: 0.75rem;
+        justify-content: space-between;
+        gap: 0.5rem;
+        padding: 0.35rem 0.5rem;
         background-color: var(--background-color);
-        border-radius: 8px;
-        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        font-size: 0.8rem;
     }
 
     .contact-item-content, .date-item-content {
         flex: 1;
+        min-width: 0;
+        color: var(--text-color);
     }
 
     .contact-item-content strong, .date-item-content strong {
-        display: block;
-        font-size: 0.9rem;
-        margin-bottom: 0.25rem;
+        font-weight: 600;
+        margin-right: 0.35rem;
     }
 
     .contact-item-content span, .date-item-content span {
-        font-size: 0.85rem;
         color: var(--text-secondary);
     }
 
     .item-actions {
-        display: flex;
-        gap: 0.5rem;
+        flex-shrink: 0;
+    }
+
+    .delete-contact, .delete-date {
+        padding: 0.1rem 0.35rem !important;
+        font-size: 0.75rem !important;
+        line-height: 1;
+        min-width: auto !important;
+        background-color: transparent !important;
+        border: 1px solid var(--border-color) !important;
+        color: var(--text-secondary) !important;
+        border-radius: 3px;
+    }
+
+    .delete-contact:hover, .delete-date:hover {
+        background-color: #ef4444 !important;
+        border-color: #ef4444 !important;
+        color: white !important;
     }
 
     .add-item-form {
@@ -296,6 +346,9 @@
 
     .modal-actions button, .modal-actions a {
         flex: 1;
+        padding: 0.5rem 1rem;
+        font-size: 0.9rem;
+        margin-bottom: 0 !important;
     }
 
     .status-badge {
@@ -322,6 +375,13 @@
 
     textarea {
         min-height: 100px;
+        resize: vertical;
+    }
+
+    #modal-job-notes {
+        min-height: 80px;
+        max-height: 300px;
+        overflow-y: auto;
         resize: vertical;
     }
 
@@ -355,10 +415,11 @@
     }
 
     .modal-nav-bar {
-        padding: 0.75rem 2rem;
+        padding: 0.5rem 1.5rem;
+        margin: 1.2rem 0;
         background-color: var(--background-color);
         border-bottom: 1px solid var(--border-color);
-        font-size: 0.85rem;
+        font-size: 0.75rem;
         color: var(--text-secondary);
         display: flex;
         justify-content: space-between;
@@ -386,6 +447,28 @@
         font-family: monospace;
         font-size: 0.75rem;
         font-weight: 600;
+    }
+
+    /* New job highlight animation */
+    @keyframes pulseHighlight {
+        0% {
+            transform: scale(1);
+            box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.7);
+        }
+        50% {
+            transform: scale(1.05);
+            box-shadow: 0 0 0 10px rgba(79, 70, 229, 0);
+        }
+        100% {
+            transform: scale(1);
+            box-shadow: 0 0 0 0 rgba(79, 70, 229, 0);
+        }
+    }
+
+    .kanban-card.new-job-highlight {
+        animation: pulseHighlight 1s ease-out 3;
+        border-color: var(--primary-color);
+        background-color: var(--primary-light);
     }
 </style>
 {% endblock %}
@@ -443,7 +526,7 @@
                     <span class="modal-subheader-divider">•</span>
                     <span class="modal-subheader-item" id="modal-job-status"></span>
                 </div>
-                <div class="modal-subheader" style="font-size: 0.85rem; margin-top: 0.25rem;">
+                <div class="modal-subheader" style="font-size: 0.85rem; margin-top: 0.15rem; margin-bottom: 0;">
                     <span class="modal-subheader-item">
                         Scraped: <span id="modal-job-scraped"></span>
                     </span>
@@ -470,8 +553,8 @@
                     <span>Scroll</span>
                 </div>
                 <div class="modal-nav-shortcut">
-                    <span class="modal-nav-key">Enter</span>
-                    <span>Save</span>
+                    <span class="modal-nav-key">Space</span>
+                    <span>Apply</span>
                 </div>
                 <div class="modal-nav-shortcut">
                     <span class="modal-nav-key">Del</span>
@@ -494,43 +577,32 @@
             </div>
 
         <div class="modal-section">
-            <h3>Notes</h3>
+            <h3>Notes <span id="notes-save-status" style="font-size: 0.75rem; color: #10b981; font-weight: normal;"></span></h3>
             <textarea id="modal-job-notes" placeholder="Add notes about this job..."></textarea>
         </div>
 
         <div class="modal-section">
-            <h3>Contacts</h3>
-            <p style="font-size: 0.85rem; color: var(--text-secondary); margin: -0.5rem 0 1rem 0;">You can add multiple contact methods for the same person by using the same name.</p>
+            <h3>Contacts <button type="button" id="show-contact-form-button" class="btn-inline">+</button></h3>
             <div id="contact-list" class="contact-list"></div>
-            <button type="button" id="show-contact-form-button" class="btn-secondary" style="margin-top: 0.75rem; width: 100%;">+ Add Contact</button>
             <div class="add-item-form" id="contact-form" style="display: none;">
-                <input type="text" id="new-contact-name" placeholder="Contact Name">
-                <select id="new-contact-type">
-                    <option value="email">Email</option>
-                    <option value="phone">Phone</option>
-                    <option value="linkedin">LinkedIn</option>
-                    <option value="other">Other</option>
-                </select>
-                <input type="text" id="new-contact-value" placeholder="Contact Value (e.g., email@example.com)" class="full-width-field">
-                <button type="button" id="add-contact-button" class="full-width-field">+ Add Contact Method</button>
+                <input type="text" id="new-contact-name" placeholder="Name">
+                <input type="text" id="new-contact-value" placeholder="Email, Phone, or LinkedIn URL" class="full-width-field">
+                <button type="button" id="add-contact-button" class="full-width-field">Add</button>
             </div>
         </div>
 
         <div class="modal-section">
-            <h3>Important Dates</h3>
+            <h3>Dates <button type="button" id="show-date-form-button" class="btn-inline">+</button></h3>
             <div id="dates-list" class="date-list"></div>
-            <button type="button" id="show-date-form-button" class="btn-secondary" style="margin-top: 0.75rem; width: 100%;">+ Add Date</button>
             <div class="add-item-form full-width" id="date-form" style="display: none;">
-                <select id="new-date-category">
+                <select id="new-date-category" style="grid-column: 1;">
                     <option value="deadline">Deadline</option>
                     <option value="interview">Interview</option>
                     <option value="followup">Follow-up</option>
                     <option value="other">Other</option>
                 </select>
-                <input type="datetime-local" id="new-date-input">
-                <input type="text" id="new-date-title" placeholder="Title (optional)">
-                <textarea id="new-date-description" placeholder="Description (optional)" style="min-height: 60px;"></textarea>
-                <button type="button" id="add-date-button">+ Add Date</button>
+                <input type="datetime-local" id="new-date-input" style="grid-column: 2;">
+                <button type="button" id="add-date-button" class="full-width-field">Add</button>
             </div>
         </div>
         </div>
@@ -538,7 +610,6 @@
         <div class="modal-actions">
             <button type="button" class="btn-secondary" id="close-modal-button">Close</button>
             <button type="button" class="btn-danger" id="delete-job-button">Delete Job</button>
-            <button type="button" id="save-job-button" class="btn">Save Notes</button>
             <a href="#" id="modal-apply-button" class="btn" target="_blank">Apply Now →</a>
         </div>
     </div>
@@ -546,12 +617,13 @@
 
 <!-- Add Job Modal -->
 <div id="add-job-modal" class="modal">
-    <div class="modal-content" style="max-height: 90vh; overflow-y: auto;">
-        <div class="modal-header">
+    <div class="modal-content" style="max-height: 90vh; overflow: hidden; border-radius: 12px; display: flex; flex-direction: column;">
+        <div class="modal-header" style="flex-shrink: 0; padding: 2rem 2rem 1rem 2rem; margin-bottom: 0;">
             <h2>Add New Job</h2>
             <button class="close-button" type="button">&times;</button>
         </div>
-        <form id="add-job-form" style="padding: 0 2rem 2rem 2rem;">
+        <div style="overflow-y: auto; flex: 1; padding: 0 2rem 2rem 2rem;">
+        <form id="add-job-form" style="padding: 0;">
             <div class="form-group">
                 <label for="new-job-title">Job Title *</label>
                 <input type="text" id="new-job-title" placeholder="e.g., Senior Software Engineer" required>
@@ -581,6 +653,7 @@
                 <button type="submit">Create Job</button>
             </div>
         </form>
+        </div>
     </div>
 </div>
 {% endblock %}
@@ -592,6 +665,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let editingDateId = null;
     let allJobs = [];
     let currentJobIndex = -1;
+    let notesAutoSaveTimeout = null;
 
     const detailsModal = document.getElementById('job-details-modal');
     const addJobModal = document.getElementById('add-job-modal');
@@ -629,6 +703,8 @@ document.addEventListener('DOMContentLoaded', () => {
         .then(response => response.json())
         .then(data => {
             if (data.id) {
+                // Store the new job ID in localStorage to highlight after reload
+                localStorage.setItem('newJobId', data.id);
                 window.location.reload(); // Reload to show new job
             } else if (data.status === 'error') {
                 alert('Error creating job: ' + data.message);
@@ -643,6 +719,38 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Collect all jobs on page load
     allJobs = Array.from(document.querySelectorAll('.kanban-card')).map(card => parseInt(card.dataset.jobId));
+
+    // Check for newly created job and apply highlight animation
+    const newJobId = localStorage.getItem('newJobId');
+    if (newJobId) {
+        const newJobCard = document.querySelector(`.kanban-card[data-job-id="${newJobId}"]`);
+        if (newJobCard) {
+            newJobCard.classList.add('new-job-highlight');
+            // Scroll the card into view
+            newJobCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            // Remove the animation class after it completes and remove from localStorage
+            setTimeout(() => {
+                newJobCard.classList.remove('new-job-highlight');
+                localStorage.removeItem('newJobId');
+            }, 3000);
+        } else {
+            localStorage.removeItem('newJobId');
+        }
+    }
+
+    // Check if job ID is in URL query parameters and auto-open
+    const urlParams = new URLSearchParams(window.location.search);
+    const jobIdFromUrl = urlParams.get('job');
+    if (jobIdFromUrl) {
+        const jobId = parseInt(jobIdFromUrl);
+        if (allJobs.includes(jobId)) {
+            currentJobId = jobId;
+            currentJobIndex = allJobs.indexOf(jobId);
+            loadJobDetails(jobId);
+            // Remove the query parameter from URL without reloading
+            window.history.replaceState({}, document.title, '/kanban');
+        }
+    }
 
     // Kanban Card Event Listeners
     function addCardEventListeners(card) {
@@ -664,6 +772,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Load Job Details
     function loadJobDetails(jobId) {
+        // Set the current job ID
+        currentJobId = jobId;
+
         fetch(`/job/${jobId}/details`)
             .then(response => response.json())
             .then(data => {
@@ -675,50 +786,32 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('modal-job-description').textContent = data.description || 'No description available';
                 document.getElementById('modal-job-notes').value = data.notes || '';
 
+                // Auto-resize notes textarea after loading content
+                autoResizeTextarea(document.getElementById('modal-job-notes'));
+
                 // Format and display timestamps
                 const scrapedDate = new Date(data.scraped_at);
                 const updatedDate = new Date(data.updated_at);
                 document.getElementById('modal-job-scraped').textContent = scrapedDate.toLocaleDateString('en-US', {month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit'});
                 document.getElementById('modal-job-updated').textContent = updatedDate.toLocaleDateString('en-US', {month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit'});
 
-                // Render contacts grouped by name
+                // Render contacts
                 const contactList = document.getElementById('contact-list');
                 contactList.innerHTML = '';
                 if (data.contacts && data.contacts.length > 0) {
-                    // Group contacts by name
-                    const groupedContacts = {};
                     data.contacts.forEach(contact => {
-                        if (!groupedContacts[contact.name]) {
-                            groupedContacts[contact.name] = [];
-                        }
-                        groupedContacts[contact.name].push(contact);
-                    });
-
-                    // Render each contact group
-                    Object.keys(groupedContacts).forEach(name => {
-                        const contactMethods = groupedContacts[name];
                         const item = document.createElement('div');
                         item.className = 'contact-item';
-
-                        const methodsHtml = contactMethods.map(c =>
-                            `<span style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
-                                <span>${c.type}: ${c.value}</span>
-                                <button class="btn-danger btn-sm delete-contact" data-contact-id="${c.id}" style="margin-left: 0.5rem; flex-shrink: 0;">×</button>
-                            </span>`
-                        ).join('');
-
                         item.innerHTML = `
-                            <div class="contact-item-content" style="flex: 1;">
-                                <strong>${name}</strong>
-                                <div style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.25rem;">
-                                    ${methodsHtml}
-                                </div>
+                            <div class="contact-item-content">
+                                <strong>${contact.name}:</strong> <span>${contact.value}</span>
                             </div>
+                            <button class="delete-contact" data-contact-id="${contact.id}">×</button>
                         `;
                         contactList.appendChild(item);
                     });
                 } else {
-                    contactList.innerHTML = '<p style="color: var(--text-secondary); font-size: 0.875rem;">No contacts added yet.</p>';
+                    contactList.innerHTML = '<p style="color: var(--text-secondary); font-size: 0.8rem; margin: 0;">No contacts</p>';
                 }
 
                 // Render dates
@@ -731,18 +824,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         const dateObj = new Date(date.date);
                         item.innerHTML = `
                             <div class="date-item-content">
-                                <strong>${date.title || date.category}</strong>
-                                <span>${dateObj.toLocaleString()}</span>
-                                ${date.description ? `<span style="display: block; margin-top: 0.25rem;">${date.description}</span>` : ''}
+                                <strong>${date.category}:</strong> <span>${dateObj.toLocaleString('en-US', {month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'})}</span>
                             </div>
-                            <div class="item-actions">
-                                <button class="btn-danger btn-sm delete-date" data-date-id="${date.id}">Delete</button>
-                            </div>
+                            <button class="delete-date" data-date-id="${date.id}">×</button>
                         `;
                         datesList.appendChild(item);
                     });
                 } else {
-                    datesList.innerHTML = '<p style="color: var(--text-secondary); font-size: 0.875rem;">No dates added yet.</p>';
+                    datesList.innerHTML = '<p style="color: var(--text-secondary); font-size: 0.8rem; margin: 0;">No dates</p>';
                 }
 
                 // Update navigation buttons
@@ -762,23 +851,79 @@ document.addEventListener('DOMContentLoaded', () => {
             });
     }
 
-    // Save Job Details
-    document.getElementById('save-job-button').addEventListener('click', () => {
-        const notes = document.getElementById('modal-job-notes').value;
+    // Function to auto-resize textarea
+    function autoResizeTextarea(textarea) {
+        textarea.style.height = 'auto';
+        const newHeight = Math.min(textarea.scrollHeight, 300);
+        textarea.style.height = newHeight + 'px';
+    }
 
-        fetch(`/job/${currentJobId}/details`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ notes })
-        })
-        .then(response => response.json())
-        .then(result => {
-            if (result.status === 'success') {
-                alert('Changes saved successfully!');
-            } else {
-                alert('Error saving changes');
+    // Auto-save notes with debouncing and auto-resize
+    const notesTextarea = document.getElementById('modal-job-notes');
+    const saveStatus = document.getElementById('notes-save-status');
+
+    console.log('Notes textarea found:', notesTextarea);
+
+    notesTextarea.addEventListener('input', () => {
+        console.log('Input event fired!');
+
+        // Auto-resize the textarea
+        autoResizeTextarea(notesTextarea);
+
+        // Show "saving..." indicator
+        saveStatus.textContent = 'saving...';
+        saveStatus.style.color = '#f59e0b';
+
+        if (notesAutoSaveTimeout) {
+            clearTimeout(notesAutoSaveTimeout);
+        }
+
+        notesAutoSaveTimeout = setTimeout(() => {
+            // Only save if we have a current job ID
+            if (!currentJobId) {
+                console.warn('No job ID set, skipping auto-save');
+                saveStatus.textContent = 'no job selected';
+                saveStatus.style.color = '#ef4444';
+                return;
             }
-        });
+
+            const notes = notesTextarea.value;
+
+            console.log('Auto-saving notes for job:', currentJobId, 'Notes length:', notes.length);
+
+            fetch(`/job/${currentJobId}/details`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ notes: notes })
+            })
+            .then(response => {
+                console.log('Response status:', response.status);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(result => {
+                console.log('Save result:', result);
+                if (result.status === 'success') {
+                    // Show success indicator
+                    saveStatus.textContent = '✓ saved';
+                    saveStatus.style.color = '#10b981';
+                    setTimeout(() => {
+                        saveStatus.textContent = '';
+                    }, 2000);
+                } else {
+                    console.error('Error saving notes:', result.message);
+                    saveStatus.textContent = 'error saving';
+                    saveStatus.style.color = '#ef4444';
+                }
+            })
+            .catch(error => {
+                console.error('Error auto-saving notes:', error);
+                saveStatus.textContent = 'error: ' + error.message;
+                saveStatus.style.color = '#ef4444';
+            });
+        }, 1000); // Auto-save 1 second after user stops typing
     });
 
     // Delete Job
@@ -799,25 +944,31 @@ document.addEventListener('DOMContentLoaded', () => {
     // Toggle contact form
     document.getElementById('show-contact-form-button').addEventListener('click', () => {
         const form = document.getElementById('contact-form');
-        const button = document.getElementById('show-contact-form-button');
-        if (form.style.display === 'none') {
+        if (form.style.display === 'none' || form.style.display === '') {
             form.style.display = 'grid';
-            button.textContent = '− Cancel';
         } else {
             form.style.display = 'none';
-            button.textContent = '+ Add Contact';
         }
     });
 
     // Add Contact
     document.getElementById('add-contact-button').addEventListener('click', () => {
         const name = document.getElementById('new-contact-name').value;
-        const type = document.getElementById('new-contact-type').value;
         const value = document.getElementById('new-contact-value').value;
 
         if (!name || !value) {
             alert('Please fill in name and contact value');
             return;
+        }
+
+        // Auto-detect type based on value
+        let type = 'other';
+        if (value.includes('@')) {
+            type = 'email';
+        } else if (value.includes('linkedin.com')) {
+            type = 'linkedin';
+        } else if (/^\+?[\d\s\-()]+$/.test(value)) {
+            type = 'phone';
         }
 
         fetch(`/job/${currentJobId}/contact`, {
@@ -831,7 +982,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('new-contact-name').value = '';
                 document.getElementById('new-contact-value').value = '';
                 document.getElementById('contact-form').style.display = 'none';
-                document.getElementById('show-contact-form-button').textContent = '+ Add Contact';
                 loadJobDetails(currentJobId);
             } else {
                 alert('Error adding contact');
@@ -858,13 +1008,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // Toggle date form
     document.getElementById('show-date-form-button').addEventListener('click', () => {
         const form = document.getElementById('date-form');
-        const button = document.getElementById('show-date-form-button');
-        if (form.style.display === 'none') {
+        if (form.style.display === 'none' || form.style.display === '') {
             form.style.display = 'grid';
-            button.textContent = '− Cancel';
         } else {
             form.style.display = 'none';
-            button.textContent = '+ Add Date';
         }
     });
 
@@ -872,8 +1019,6 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('add-date-button').addEventListener('click', () => {
         const category = document.getElementById('new-date-category').value;
         const date = document.getElementById('new-date-input').value;
-        const title = document.getElementById('new-date-title').value;
-        const description = document.getElementById('new-date-description').value;
 
         if (!date) {
             alert('Please select a date');
@@ -886,18 +1031,15 @@ document.addEventListener('DOMContentLoaded', () => {
             body: JSON.stringify({
                 date,
                 category,
-                title: title || category,
-                description
+                title: category,
+                description: ''
             })
         })
         .then(response => response.json())
         .then(result => {
             if (result.status === 'success') {
                 document.getElementById('new-date-input').value = '';
-                document.getElementById('new-date-title').value = '';
-                document.getElementById('new-date-description').value = '';
                 document.getElementById('date-form').style.display = 'none';
-                document.getElementById('show-date-form-button').textContent = '+ Add Date';
                 loadJobDetails(currentJobId);
             } else {
                 alert('Error adding date');
@@ -970,10 +1112,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const modalBodyDown = document.querySelector('.modal-body-wrapper');
                 modalBodyDown.scrollBy({ top: 100, behavior: 'smooth' });
                 break;
-            case 'Enter':
+            case ' ':
                 e.preventDefault();
-                // Save changes
-                document.getElementById('save-job-button').click();
+                // Click the apply button
+                document.getElementById('modal-apply-button').click();
                 break;
             case 'Delete':
                 e.preventDefault();

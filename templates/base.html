@@ -304,12 +304,13 @@
 </head>
 <body>
     <nav class="navbar">
-        <a href="{{ url_for('index') }}" class="logo">Job Scraper</a>
+        <a href="{{ url_for('jobs.index') }}" class="logo">Job Scraper</a>
         <div class="nav-links">
-            <a href="{{ url_for('scrape') }}" class="{% if active_page == 'scrape' %}active-nav-link{% endif %}">Scraper</a>
-            <a href="{{ url_for('index') }}" class="{% if active_page == 'index' %}active-nav-link{% endif %}">Jobs</a>
-            <a href="{{ url_for('kanban') }}" class="{% if active_page == 'kanban' %}active-nav-link{% endif %}">Kanban</a>
-            <a href="{{ url_for('calendar') }}" class="{% if active_page == 'calendar' %}active-nav-link{% endif %}">Calendar</a>
+            <a href="{{ url_for('prompt.prompt') }}" class="{% if active_page == 'prompt' %}active-nav-link{% endif %}">Prompt</a>
+            <a href="{{ url_for('scrape.scrape') }}" class="{% if active_page == 'scrape' %}active-nav-link{% endif %}">Scraper</a>
+            <a href="{{ url_for('jobs.index') }}" class="{% if active_page == 'index' %}active-nav-link{% endif %}">Jobs</a>
+            <a href="{{ url_for('kanban.kanban') }}" class="{% if active_page == 'kanban' %}active-nav-link{% endif %}">Kanban</a>
+            <a href="{{ url_for('calendar.calendar') }}" class="{% if active_page == 'calendar' %}active-nav-link{% endif %}">Calendar</a>
         </div>
     </nav>
 

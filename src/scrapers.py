@@ -12,6 +12,7 @@ import json
 import time
 import os
 import logging
+from queue import Queue
 
 sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer)
 
@@ -25,16 +26,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# def save_html(html_data, file_name="linked_in_jobs.html"):
-#     """Save HTML to file if it doesn't exist."""
-#     if os.path.exists(file_name):
-#         return
-#     try:
-#         with open(file_name, "w", encoding='utf-8') as f:
-#             f.write(html_data)
-#         logger.info(f"HTML file {file_name} successfully created.")
-#     except Exception as e:
-#         raise RuntimeError(f"HTML data could not be saved under {file_name}: {e}")
 
 class LinkedInScraper:
     """Scrape LinkedIn job listings with flexible filtering."""
@@ -164,8 +155,10 @@ class LinkedInScraper:
             logger.error("Login timeout exceeded (180s)")
             raise TimeoutError("Login timeout exceeded (180s)")
     
-    def _scrape_page(self, jobs_data: List[dict], location: str, page_num: int):
+    def _scrape_page(self, jobs_data: Union[Queue,List[dict]], location: str, page_num: int):
         """Extract job listings from current page."""
+        
+        # wait until the page is loaded and check how many jobs there are.
         WebDriverWait(self.driver, 100).until(
             EC.presence_of_element_located((By.CSS_SELECTOR, 'li.scaffold-layout__list-item'))
         )
@@ -173,6 +166,10 @@ class LinkedInScraper:
         items = self.driver.find_elements(By.CSS_SELECTOR, 'li.scaffold-layout__list-item')
         logger.info(f"[{location}] Page {page_num}: Found {len(items)} job listings")
 
+        # check what data type job_data has
+        is_list = True if type(jobs_data) == list else False
+        
+        # loop for all job postiongs
         for idx, item in enumerate(items, 1):
             # Check if stop was requested
             if self.stop_callback():
@@ -207,16 +204,23 @@ class LinkedInScraper:
                 job_title = title_elem.get_text(strip=True) if title_elem else "Not Available"
 
                 desc_elem = page_soup.find('div', class_=re.compile(r'jobs-description-content__text'))
-                description = desc_elem.get_text(" ", strip=True) if desc_elem else "Not Available"
+                description = desc_elem.get_text("\n") if desc_elem else "Not Available"
                 app_link = self._get_application_link()
-
-                jobs_data.append({
-                    'title': job_title,
-                    'company': company_text,
-                    'location': location_text,
-                    'description': description,
-                    'application_link': app_link
-                })
+                
+                # we id jobs through their application links. If they are not found we cannot use it
+                if app_link is None: continue
+                
+                data = {
+                        'title': job_title,
+                        'company': company_text,
+                        'location': location_text,
+                        'description': description,
+                        'application_link': app_link
+                }
+                if is_list: 
+                    jobs_data.append(data)
+                else: 
+                    jobs_data.put(data)
 
                 self.total_jobs_scraped += 1
                 logger.info(f"[{location}] Job {idx}/{len(items)}: {job_title} @ {company_text} | Total: {self.total_jobs_scraped}")
@@ -246,8 +250,9 @@ class LinkedInScraper:
         except:
             return "Not Available"
     
-    def scrape_jobs(self) -> pd.DataFrame:
-        """Scrape jobs across all specified locations and pages."""
+    def scrape_jobs(self, queue:Queue=None) -> Union[None,pd.DataFrame]:
+        """Scrape jobs across all specified locations and pages. If a queue is given all results are directly 
+        written into the queue and nothing is returned. Otherwise a pandas DataFrame will be returned."""
         logger.info("=" * 60)
         logger.info("Starting LinkedIn job scraping")
         logger.info("=" * 60)
@@ -265,7 +270,7 @@ class LinkedInScraper:
         try:
             self._load_cookies()
 
-            jobs_data = []
+            jobs_data = [] if not queue else queue
 
             for loc_idx, location in enumerate(self.locations, 1):
                 # Check if stop was requested
@@ -304,16 +309,17 @@ class LinkedInScraper:
 
                 logger.info(f"Completed {location} - Total jobs scraped so far: {self.total_jobs_scraped}\n")
 
-            df = pd.DataFrame(jobs_data)
-            prev_len = len(df)
-            df.drop_duplicates(subset=["company", "title"], inplace=True)
-            logger.info(f"{prev_len-len(df)} duplicate instances was/were detected and deleted.")
-
             logger.info("=" * 60)
             logger.info(f"Scraping complete! Total jobs scraped: {self.total_jobs_scraped}")
             logger.info("=" * 60)
+                
+            if type(jobs_data) == list: 
+                df = pd.DataFrame(jobs_data)
+                prev_len = len(df)
+                df.drop_duplicates(subset=["company", "title"], inplace=True)
+                logger.info(f"{prev_len-len(df)} duplicate instances was/were detected and deleted.")
 
-            return df
+                return df
 
         except Exception as e:
             logger.error(f"LinkedIn scraping failed: {e}")

@@ -213,6 +213,29 @@
         <div id="status" class="status-message" style="display: none;"></div>
     </div>
 
+    <!-- Warning Modal for Missing Profile -->
+    <div id="profile-warning-modal" class="modal">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h2>⚠️ Profile Incomplete</h2>
+                <button class="close-button" type="button" onclick="document.getElementById('profile-warning-modal').style.display='none'">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>You haven't completed your profile setup. Without a CV and job preferences, job fit scores cannot be calculated.</p>
+                <div id="profile-warning-details" style="margin: 1rem 0; padding: 1rem; background-color: #fef3c7; border-radius: 8px; font-size: 0.9rem;">
+                    <p style="margin: 0.5rem 0;"><strong>Missing:</strong></p>
+                    <ul id="missing-items" style="margin: 0.5rem 0; padding-left: 1.5rem;"></ul>
+                </div>
+                <p style="margin-bottom: 0;">Do you want to continue scraping without job fit scoring?</p>
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn-secondary" onclick="document.getElementById('profile-warning-modal').style.display='none'">Cancel</button>
+                <a href="/prompt" class="btn-secondary" style="text-decoration: none;">Setup Profile</a>
+                <button type="button" class="btn" id="continue-scrape-button">Continue Anyway</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Modal for Add/Edit Scraper -->
     <div id="scraper-modal" class="modal">
         <div class="modal-content">
@@ -351,6 +374,16 @@ document.addEventListener('DOMContentLoaded', () => {
         log.scrollTop = log.scrollHeight;
     });
 
+    socket.on('job_processed', (msg) => {
+        console.log('[SCRAPER] Job processed:', msg);
+        const jobTitle = msg.job;
+        const company = msg.company;
+        const location = msg.location;
+        const score = msg.score;
+        log.textContent += `Saved ${jobTitle} @ ${company} in ${location} with score ${score*100}%\n`;
+        log.scrollTop = log.scrollHeight;
+    });
+
     socket.on('scrape_finished', (msg) => {
         console.log('[SCRAPER] Scrape finished:', msg);
         log.textContent += '\n✓ ' + msg.data + '\n';
@@ -406,6 +439,77 @@ document.addEventListener('DOMContentLoaded', () => {
     const scraperForm = document.getElementById('scraper-form');
     const scraperIdInput = document.getElementById('scraper-id');
     const closeModalButton = scraperModal.querySelector('.close-button');
+    const profileWarningModal = document.getElementById('profile-warning-modal');
+    const continueButton = document.getElementById('continue-scrape-button');
+    const missingItemsList = document.getElementById('missing-items');
+
+    // Store pending scrape data
+    let pendingScrapeId = null;
+    let pendingScrapeButton = null;
+
+    // Check profile and show warning if incomplete
+    async function checkProfileAndStartScrape(id, button) {
+        try {
+            const response = await fetch('/profile/check');
+            const result = await response.json();
+
+            if (result.is_complete) {
+                // Profile is complete, proceed directly
+                startScrape(id, button);
+            } else {
+                // Profile is incomplete, show warning
+                pendingScrapeId = id;
+                pendingScrapeButton = button;
+
+                // Update missing items list
+                missingItemsList.innerHTML = '';
+                if (!result.has_cv) {
+                    const li = document.createElement('li');
+                    li.textContent = 'CV/Resume not uploaded';
+                    missingItemsList.appendChild(li);
+                }
+                if (!result.has_preferences) {
+                    const li = document.createElement('li');
+                    li.textContent = 'Job preferences not provided';
+                    missingItemsList.appendChild(li);
+                }
+
+                // Show warning modal
+                profileWarningModal.style.display = 'block';
+            }
+        } catch (error) {
+            console.error('Error checking profile:', error);
+            // If check fails, proceed anyway
+            startScrape(id, button);
+        }
+    }
+
+    // Actually start the scrape
+    function startScrape(id, button) {
+        console.log('[SCRAPER] Starting scrape for ID:', id);
+        setRunButtonLoading(button);
+        log.textContent = 'Starting scrape...\n';
+        status.style.display = 'none';
+        stopButton.style.display = 'block';
+        stopButton.disabled = false;
+        stopButton.textContent = '⏹ Stop Scraping';
+        fetch(`/search_criteria/${id}`)
+            .then(response => response.json())
+            .then(data => {
+                console.log('[SCRAPER] Emitting start_scrape with data:', data);
+                socket.emit('start_scrape', { data: data });
+            });
+    }
+
+    // Continue button handler
+    continueButton.addEventListener('click', () => {
+        profileWarningModal.style.display = 'none';
+        if (pendingScrapeId && pendingScrapeButton) {
+            startScrape(pendingScrapeId, pendingScrapeButton);
+            pendingScrapeId = null;
+            pendingScrapeButton = null;
+        }
+    });
 
     // Toggle button functionality
     function setupToggleButtons() {
@@ -672,19 +776,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
             }
         } else if (target.classList.contains('run-scraper')) {
-            console.log('[SCRAPER] Starting scrape for ID:', id);
-            setRunButtonLoading(target);
-            log.textContent = 'Starting scrape...\n';
-            status.style.display = 'none';
-            stopButton.style.display = 'block';
-            stopButton.disabled = false;
-            stopButton.textContent = '⏹ Stop Scraping';
-            fetch(`/search_criteria/${id}`)
-                .then(response => response.json())
-                .then(data => {
-                    console.log('[SCRAPER] Emitting start_scrape with data:', data);
-                    socket.emit('start_scrape', { data: data });
-                });
+            // Check profile before starting scrape
+            checkProfileAndStartScrape(id, target);
         }
     });
 
