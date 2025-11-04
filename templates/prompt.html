@@ -239,9 +239,12 @@
     <!-- Side-by-side Comparison -->
     <div class="comparison-section" id="comparison-section">
         <div class="comparison-panel">
-            <div class="comparison-header">Original CV Text</div>
-            <div class="comparison-content">
-                <div class="cv-display" id="original-cv-text">No CV uploaded yet</div>
+            <div class="comparison-header">Original CV (PDF)</div>
+            <div class="comparison-content" style="padding: 0; overflow: hidden;">
+                <div id="pdf-placeholder" style="display: flex; align-items: center; justify-content: center; height: 500px; color: var(--text-secondary);">
+                    No CV uploaded yet
+                </div>
+                <iframe id="pdf-viewer" style="width: 100%; height: 500px; border: none; display: none;"></iframe>
             </div>
         </div>
         <div class="comparison-panel">
@@ -278,7 +281,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const filenameDisplay = document.getElementById('filename-display');
     const loadingOverlay = document.getElementById('loading-overlay');
     const comparisonSection = document.getElementById('comparison-section');
-    const originalCvText = document.getElementById('original-cv-text');
+    const pdfViewer = document.getElementById('pdf-viewer');
+    const pdfPlaceholder = document.getElementById('pdf-placeholder');
     const editableCvText = document.getElementById('editable-cv-text');
     const jobPreferences = document.getElementById('job-preferences');
     const saveButton = document.getElementById('save-button');
@@ -296,12 +300,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 currentProfile = data;
 
                 if (data.cv_text) {
-                    originalCvText.textContent = data.cv_text;
                     editableCvText.value = data.cv_text;
-                    comparisonSection.classList.add('active');
                 }
 
                 if (data.cv_filename) {
+                    // Load PDF viewer
+                    pdfViewer.src = `/profile/cv/${data.cv_filename}`;
+                    pdfViewer.style.display = 'block';
+                    pdfPlaceholder.style.display = 'none';
+                    comparisonSection.classList.add('active');
+
+                    // Update filename display
                     filenameDisplay.textContent = `Current CV: ${data.cv_filename}`;
                     filenameDisplay.style.display = 'block';
                     uploadSection.classList.add('has-file');
@@ -337,12 +346,17 @@ document.addEventListener('DOMContentLoaded', () => {
             const result = await response.json();
 
             if (result.status === 'success') {
-                // Update UI with extracted text
+                // Update filename display
                 filenameDisplay.textContent = `Uploaded: ${result.filename}`;
                 filenameDisplay.style.display = 'block';
                 uploadSection.classList.add('has-file');
 
-                originalCvText.textContent = result.extracted_text;
+                // Load PDF viewer
+                pdfViewer.src = `/profile/cv/${result.filename}`;
+                pdfViewer.style.display = 'block';
+                pdfPlaceholder.style.display = 'none';
+
+                // Update editable text
                 editableCvText.value = result.extracted_text;
                 comparisonSection.classList.add('active');
 
@@ -379,8 +393,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (result.status === 'success') {
                 showSaveStatus('success', 'Changes saved successfully!');
-                // Update original text to match edited version
-                originalCvText.textContent = editableCvText.value;
             } else {
                 showSaveStatus('error', 'Error saving: ' + result.message);
             }

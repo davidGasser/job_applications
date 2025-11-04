@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify, request, render_template
+from flask import Blueprint, jsonify, request, render_template, send_from_directory
 from models import db, UserProfile
 from pathlib import Path
 import os
@@ -66,6 +66,14 @@ def update_profile():
     except Exception as e:
         db.session.rollback()
         return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@prompt_bp.route('/profile/cv/<filename>')
+def serve_cv(filename):
+    """Serve the uploaded CV PDF file."""
+    try:
+        return send_from_directory(CV_UPLOAD_DIR, filename)
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': 'CV file not found'}), 404
 
 @prompt_bp.route('/profile/check', methods=['GET'])
 def check_profile():
