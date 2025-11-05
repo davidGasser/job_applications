@@ -171,6 +171,7 @@ class LinkedInScraper:
         
         # loop for all job postiongs
         for idx, item in enumerate(items, 1):
+            
             # Check if stop was requested
             if self.stop_callback():
                 logger.info("Scraping stopped by user request")
@@ -186,7 +187,7 @@ class LinkedInScraper:
                     pass
 
                 item.click()
-                time.sleep(0.4)
+                time.sleep(0.5)
 
                 page_soup = BeautifulSoup(self.driver.page_source, 'html.parser')
 
@@ -217,13 +218,15 @@ class LinkedInScraper:
                         'description': description,
                         'application_link': app_link
                 }
-                if is_list: 
+                if is_list:
                     jobs_data.append(data)
-                else: 
+                else:
+                    # Putting into queue - log this
+                    
                     jobs_data.put(data)
+                    logger.info(f"[{location}] Job {idx}/{len(items)}: {job_title} @ {company_text} (queue size: ~{jobs_data.qsize()})")
 
                 self.total_jobs_scraped += 1
-                logger.info(f"[{location}] Job {idx}/{len(items)}: {job_title} @ {company_text} | Total: {self.total_jobs_scraped}")
 
             except Exception as e:
                 logger.warning(f"[{location}] Failed to scrape job {idx}/{len(items)}: {e}")
@@ -233,6 +236,7 @@ class LinkedInScraper:
         """Extract application link from job posting."""
         try: 
             if self.driver.find_element(By.XPATH, "//button[contains(@aria-label,'Easy Apply to')][1]"): 
+                time.sleep(0.5)
                 return self.driver.current_url
         except: 
             pass 
@@ -240,7 +244,7 @@ class LinkedInScraper:
         try:
             apply_button = self.driver.find_element(By.XPATH, "//button[contains(@id,'jobs-apply-button-id')][1]")
             apply_button.click()
-            time.sleep(0.3)
+            time.sleep(0.4)
             
             self.driver.switch_to.window(self.driver.window_handles[1])
             link = self.driver.current_url

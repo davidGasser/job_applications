@@ -2,3 +2,4 @@
 *.log
 /data
 /uploads
+*/__pycache__*
