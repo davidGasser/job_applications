@@ -579,6 +579,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('locations').value = criteria.locations;
         document.getElementById('distance').value = criteria.distance_in_km || '';
         document.getElementById('date_posted').value = criteria.date_posted || '';
+        document.getElementById('pages').value = criteria.pages || 1;
 
         // Clear all toggle buttons first
         document.querySelectorAll('.toggle-button').forEach(btn => btn.classList.remove('active'));
@@ -720,6 +721,7 @@ document.addEventListener('DOMContentLoaded', () => {
             locations: document.getElementById('locations').value,
             distance_in_km: document.getElementById('distance').value || null,
             date_posted: document.getElementById('date_posted').value || null,
+            pages: parseInt(document.getElementById('pages').value) || 1,
             exp_level: expLevels.length > 0 ? expLevels.join(', ') : null,
             job_type: jobTypes.length > 0 ? jobTypes.join(', ') : null,
             schedule_enabled: scheduleEnabledCheckbox.checked,

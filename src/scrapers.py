@@ -165,10 +165,16 @@ class LinkedInScraper:
         time.sleep(1)
         items = self.driver.find_elements(By.CSS_SELECTOR, 'li.scaffold-layout__list-item')
         logger.info(f"[{location}] Page {page_num}: Found {len(items)} job listings")
-
+        
+        # Scroll to bottom of job list to load all lazy-loaded items
+        # This ensures all jobs are in the DOM before we start clicking
+        job_list_container = self.driver.find_element(By.CSS_SELECTOR, 'li.scaffold-layout__list-item')
+        self.driver.execute_script("arguments[0].scrollTo(0, arguments[0].scrollHeight);", job_list_container)
+        time.sleep(1)  # Wait for any lazy-loaded items to appear
+   
         # check what data type job_data has
         is_list = True if type(jobs_data) == list else False
-        
+        old_title = None
         # loop for all job postiongs
         for idx, item in enumerate(items, 1):
             
@@ -185,9 +191,18 @@ class LinkedInScraper:
                         close_button.click()
                 except:
                     pass
-
-                item.click()
-                time.sleep(0.5)
+                
+                if idx != 1: 
+                    WebDriverWait(self.driver, 5).until(
+                        lambda driver: driver.find_element(By.CSS_SELECTOR, 'h1.t-24').text == old_title
+                    )
+                    item.click()
+                    time.sleep(0.1)
+                    item.click()
+                    WebDriverWait(self.driver, 5).until(
+                        lambda driver: driver.find_element(By.CSS_SELECTOR, 'h1.t-24').text != old_title
+                    )
+                    
 
                 page_soup = BeautifulSoup(self.driver.page_source, 'html.parser')
 
@@ -227,7 +242,8 @@ class LinkedInScraper:
                     logger.info(f"[{location}] Job {idx}/{len(items)}: {job_title} @ {company_text} (queue size: ~{jobs_data.qsize()})")
 
                 self.total_jobs_scraped += 1
-
+                old_title = job_title
+                
             except Exception as e:
                 logger.warning(f"[{location}] Failed to scrape job {idx}/{len(items)}: {e}")
                 continue
