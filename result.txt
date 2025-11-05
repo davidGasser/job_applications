@@ -1,0 +1,20 @@
+{
+  "skillset": 80,
+  "academic": 100,
+  "experience": 60,
+  "professional": 70,
+  "language": 90,
+  "preference": 40,
+  "overall": 75,
+  "reasoning": {
+    "strengths": [
+      "Strong academic background in Robotics, Cognition, Intelligence with a Master's degree from Technical University of Munich",
+      "Relevant professional experience in AI and machine learning with roles at Japan National Institute of Informatics, Munich Re AG, and Siemens AG/KeySpot GmbH"
+    ],
+    "concerns": [
+      "Lack of direct experience in trade marketing and project management",
+      "Limited relevance of skills to the job requirements (e.g., programming languages, AI/ML tools)"
+    ],
+    "summary": "The candidate has a strong academic background and relevant professional experience in AI and machine learning. However, they lack direct experience in trade marketing and project management, which may be a concern for this role."
+  }
+}

@@ -1,44 +1,57 @@
 services:
-  db:
-    image: postgres:16-alpine
-    restart: always
-    environment:
-      - POSTGRES_USER=user
-      - POSTGRES_PASSWORD=password
-      - POSTGRES_DB=jobs
-    volumes:
-      - postgres_data:/var/lib/postgresql/data/
-    ports:
-      - '5433:5432'
+#   db:
+#     image: postgres:16-alpine
+#     restart: always
+#     environment:
+#       - POSTGRES_USER=user
+#       - POSTGRES_PASSWORD=password
+#       - POSTGRES_DB=jobs
+#     volumes:
+#       - postgres_data:/var/lib/postgresql/data/
+#     ports:
+#       - '5433:5432'
 
-  app:
+#   app:
+#     build: .
+#     restart: always
+#     ports:
+#       - '5000:5000'
+#       - '5678:5678'
+#     volumes:
+#       - .:/app
+#     depends_on:
+#       - db
+#       - selenium
+#       - ollama
+#     environment:
+#       - TZ=Europe/Berlin
+#       - DATABASE_URL=postgresql://user:password@db:5432/jobs
+#       - FLASK_APP=src/main.py
+#       - FLASK_DEBUG=1
+#       - ENABLE_DEBUGPY=1
+#       - OLLAMA_HOST=http://ollama:11434
+#     command: python -Xfrozen_modules=off src/main.py
+
+  # selenium:
+  #   image: selenium/standalone-chrome:latest
+  #   shm_size: 2g
+  #   restart: always
+  #   ports:
+  #     - '4444:4444'
+  dev: 
     build: .
-    restart: always
-    ports:
-      - '5000:5000'
-      - '5678:5678'
     volumes:
       - .:/app
-    depends_on:
-      - db
-      - selenium
-      - ollama
+    working_dir: /app
+    stdin_open: true
+    tty: true
+    command: /bin/bash
     environment:
-      - TZ=Europe/Berlin
       - DATABASE_URL=postgresql://user:password@db:5432/jobs
-      - FLASK_APP=src/main.py
-      - FLASK_DEBUG=1
-      - ENABLE_DEBUGPY=1
       - OLLAMA_HOST=http://ollama:11434
-    command: python -Xfrozen_modules=off src/main.py
-
-  selenium:
-    image: selenium/standalone-chrome:latest
-    shm_size: 2g
-    restart: always
-    ports:
-      - '4444:4444'
-
+    depends_on:
+      - ollama
+    
   ollama:
     image: ollama/ollama:latest
     container_name: ollama
@@ -57,5 +70,5 @@ services:
               capabilities: [gpu]
 
 volumes:
-  postgres_data:
+  # postgres_data:
   ollama:

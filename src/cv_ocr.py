@@ -6,7 +6,7 @@ import ollama
 import os
 import logging
 
- 
+
 def _convert_cv_to_image(pdf_path: Path):
     # Converts up to two page of a PDF to a PNG image.
     images = convert_from_path(pdf_path, first_page=1, last_page=2)
@@ -19,12 +19,13 @@ def _convert_cv_to_image(pdf_path: Path):
     return images
 
 
-def extract_text_from_cv(path_pdf: Path, model: str ="qwen3-vl:2b"):
+def extract_text_from_cv(path_pdf: Path, model = "qwen3-vl:2b"):
     # extracts the CV's content from the picture.
 
     # Create Ollama client with host from environment variable (defaults to http://localhost:11434)
     ollama_host = os.getenv('OLLAMA_HOST', 'http://localhost:11434')
     client = ollama.Client(host=ollama_host)
+    
 
     images = _convert_cv_to_image(path_pdf)
 
@@ -56,7 +57,7 @@ def extract_text_from_cv(path_pdf: Path, model: str ="qwen3-vl:2b"):
 
 if __name__ == "__main__": 
     
-    path_cv = "David_Gasser_public_CV_2025.pdf"
+    path_cv = "/uploads/David_Gasser_public_CV_2025.pdf"
     output_text = extract_text_from_cv(path_cv)
     with open("keyword.txt", "w") as f: 
         f.write(output_text)
