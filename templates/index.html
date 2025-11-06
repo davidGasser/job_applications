@@ -11,6 +11,70 @@
         margin-bottom: 1.5rem;
     }
 
+    .threshold-control {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 1rem;
+        background-color: var(--card-background);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        margin-bottom: 1.5rem;
+    }
+
+    .threshold-label {
+        font-weight: 600;
+        color: var(--text-color);
+        white-space: nowrap;
+    }
+
+    .threshold-slider-container {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        max-width: 400px;
+    }
+
+    .threshold-slider {
+        flex: 1;
+        height: 6px;
+        border-radius: 3px;
+        background: linear-gradient(to right, #fee2e2 0%, #fef3c7 50%, #d1fae5 100%);
+        outline: none;
+        -webkit-appearance: none;
+    }
+
+    .threshold-slider::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: var(--primary-color);
+        cursor: pointer;
+        border: 2px solid white;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+
+    .threshold-slider::-moz-range-thumb {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: var(--primary-color);
+        cursor: pointer;
+        border: 2px solid white;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+
+    .threshold-value {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: var(--primary-color);
+        min-width: 50px;
+        text-align: center;
+    }
+
     /* Scrape Selector Carousel */
     .scrape-selector-section {
         margin-bottom: 2rem;
@@ -309,6 +373,67 @@
         font-weight: 700;
         text-align: center;
         min-width: 50px;
+        position: relative;
+        cursor: help;
+    }
+
+    .score-tooltip {
+        display: none;
+        position: absolute;
+        top: 100%;
+        right: 0;
+        margin-top: 0.5rem;
+        background-color: white;
+        border: 2px solid var(--border-color);
+        border-radius: 8px;
+        padding: 0.75rem;
+        box-shadow: var(--shadow-lg);
+        z-index: 100;
+        min-width: 280px;
+        font-size: 0.75rem;
+        font-weight: 400;
+    }
+
+    .matching-score:hover .score-tooltip {
+        display: block;
+    }
+
+    .score-tooltip-header {
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+        color: var(--text-color);
+        font-size: 0.8rem;
+        border-bottom: 1px solid var(--border-color);
+        padding-bottom: 0.5rem;
+    }
+
+    .score-breakdown {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 0.4rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .score-breakdown-item {
+        display: contents;
+    }
+
+    .score-breakdown-label {
+        color: var(--text-secondary);
+    }
+
+    .score-breakdown-value {
+        font-weight: 600;
+        text-align: right;
+        color: var(--text-color);
+    }
+
+    .score-tooltip-summary {
+        margin-top: 0.5rem;
+        padding-top: 0.5rem;
+        border-top: 1px solid var(--border-color);
+        color: var(--text-secondary);
+        line-height: 1.4;
     }
 
     .score-high {
@@ -570,6 +695,78 @@
         color: var(--text-color);
     }
 
+    .score-details-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .score-detail-card {
+        background-color: var(--background-color);
+        padding: 1rem;
+        border-radius: 8px;
+        border: 1px solid var(--border-color);
+        text-align: center;
+    }
+
+    .score-detail-label {
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+        margin-bottom: 0.5rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        font-weight: 600;
+    }
+
+    .score-detail-value {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: var(--primary-color);
+    }
+
+    .score-reasoning {
+        background-color: var(--background-color);
+        padding: 1rem;
+        border-radius: 8px;
+        border-left: 4px solid var(--primary-color);
+    }
+
+    .score-reasoning h4 {
+        font-size: 0.9rem;
+        font-weight: 600;
+        margin: 0 0 0.5rem 0;
+        color: var(--text-color);
+    }
+
+    .score-reasoning ul {
+        margin: 0.5rem 0;
+        padding-left: 1.5rem;
+    }
+
+    .score-reasoning li {
+        margin-bottom: 0.25rem;
+        font-size: 0.9rem;
+        line-height: 1.5;
+    }
+
+    .score-reasoning-strengths {
+        color: #065f46;
+    }
+
+    .score-reasoning-concerns {
+        color: #991b1b;
+    }
+
+    .score-reasoning-summary {
+        margin-top: 0.75rem;
+        padding-top: 0.75rem;
+        border-top: 1px solid var(--border-color);
+        font-size: 0.95rem;
+        color: var(--text-secondary);
+        line-height: 1.6;
+    }
+
     .modal-nav-bar {
         padding: 0.5rem 1.5rem;
         margin: 1.2rem 0;
@@ -631,6 +828,13 @@
     </div>
 
     {% if scrapes %}
+    <div class="threshold-control">
+        <span class="threshold-label">Score Threshold:</span>
+        <div class="threshold-slider-container">
+            <input type="range" id="threshold-slider" class="threshold-slider" min="0" max="100" value="80" step="5">
+            <span class="threshold-value" id="threshold-value">80%</span>
+        </div>
+    </div>
     <div class="scrape-selector-section">
         <div class="scrape-selector-header">
             <h3>Select Scrape to Review</h3>
@@ -754,6 +958,12 @@
             </div>
 
             <div class="modal-body-wrapper">
+                <div class="modal-section" id="score-details-section">
+                    <h3>Match Analysis</h3>
+                    <div class="score-details-grid" id="modal-score-grid"></div>
+                    <div class="score-reasoning" id="modal-score-reasoning"></div>
+                </div>
+
                 <div class="modal-section">
                     <h3>Job Description</h3>
                     <div class="job-description-box" id="modal-job-description"></div>
@@ -798,7 +1008,19 @@ document.addEventListener('DOMContentLoaded', () => {
     let allJobs = [];
     let lowScoreJobsExpanded = false;
 
-    const SCORE_THRESHOLD = 80;
+    let SCORE_THRESHOLD = 80; // Dynamic threshold (adjustable via slider)
+
+    // Threshold slider event listener
+    const thresholdSlider = document.getElementById('threshold-slider');
+    const thresholdValue = document.getElementById('threshold-value');
+
+    if (thresholdSlider && thresholdValue) {
+        thresholdSlider.addEventListener('input', (e) => {
+            SCORE_THRESHOLD = parseInt(e.target.value);
+            thresholdValue.textContent = SCORE_THRESHOLD + '%';
+            renderJobs(); // Re-render with new threshold
+        });
+    }
 
     // Load jobs for selected scrape
     function loadScrapeJobs(scrapeId) {
@@ -846,7 +1068,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Render high score jobs
             const container = document.getElementById('jobs-container');
-            container.innerHTML = highScoreJobs.length > 0 ? '' : '<div class="empty-state"><h3>No high-scoring jobs (≥80%)</h3></div>';
+            container.innerHTML = highScoreJobs.length > 0 ? '' : `<div class="empty-state"><h3>No high-scoring jobs (≥${SCORE_THRESHOLD}%)</h3></div>`;
 
             highScoreJobs.forEach(job => {
                 container.appendChild(createJobCard(job));
@@ -859,7 +1081,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (lowScoreJobs.length > 0) {
                 expandSection.style.display = 'block';
-                lowScoreCount.textContent = `${lowScoreJobs.length} jobs below 80% match - Click to view`;
+                lowScoreCount.textContent = `${lowScoreJobs.length} jobs below ${SCORE_THRESHOLD}% match - Click to view`;
 
                 if (lowScoreJobsExpanded) {
                     lowScoreContainer.innerHTML = '';
@@ -883,6 +1105,50 @@ document.addEventListener('DOMContentLoaded', () => {
         const scoreClass = job.matching_score >= 90 ? 'score-high' :
                           job.matching_score >= 80 ? 'score-medium' : 'score-low';
 
+        // Parse score details
+        let scoreTooltip = '';
+        if (job.score_details) {
+            try {
+                const details = JSON.parse(job.score_details);
+                scoreTooltip = `
+                    <div class="score-tooltip">
+                        <div class="score-tooltip-header">Score Breakdown</div>
+                        <div class="score-breakdown">
+                            <div class="score-breakdown-item">
+                                <span class="score-breakdown-label">Skillset:</span>
+                                <span class="score-breakdown-value">${details.skillset}%</span>
+                            </div>
+                            <div class="score-breakdown-item">
+                                <span class="score-breakdown-label">Academic:</span>
+                                <span class="score-breakdown-value">${details.academic}%</span>
+                            </div>
+                            <div class="score-breakdown-item">
+                                <span class="score-breakdown-label">Experience:</span>
+                                <span class="score-breakdown-value">${details.experience}%</span>
+                            </div>
+                            <div class="score-breakdown-item">
+                                <span class="score-breakdown-label">Professional:</span>
+                                <span class="score-breakdown-value">${details.professional}%</span>
+                            </div>
+                            <div class="score-breakdown-item">
+                                <span class="score-breakdown-label">Language:</span>
+                                <span class="score-breakdown-value">${details.language}%</span>
+                            </div>
+                            <div class="score-breakdown-item">
+                                <span class="score-breakdown-label">Preference:</span>
+                                <span class="score-breakdown-value">${details.preference}%</span>
+                            </div>
+                        </div>
+                        ${details.reasoning && details.reasoning.summary ? `
+                            <div class="score-tooltip-summary">${details.reasoning.summary}</div>
+                        ` : ''}
+                    </div>
+                `;
+            } catch (e) {
+                console.error('Error parsing score details:', e);
+            }
+        }
+
         card.innerHTML = `
             <div class="job-card-header">
                 <div class="job-card-title">
@@ -893,7 +1159,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     <span class="shortlist-heart ${job.shortlisted ? 'shortlisted' : ''}">
                         ${job.shortlisted ? '♥' : '♡'}
                     </span>
-                    <span class="matching-score ${scoreClass}">${job.matching_score}%</span>
+                    <span class="matching-score ${scoreClass}">
+                        ${job.matching_score}%
+                        ${scoreTooltip}
+                    </span>
                 </div>
             </div>
             <p class="location">${job.location}</p>
@@ -932,7 +1201,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('low-score-count').textContent = 'Click to hide';
         } else {
             lowScoreContainer.style.display = 'none';
-            document.getElementById('low-score-count').textContent = `${allJobs.filter(j => j.matching_score < SCORE_THRESHOLD).length} jobs below 80% match - Click to view`;
+            document.getElementById('low-score-count').textContent = `${allJobs.filter(j => j.matching_score < SCORE_THRESHOLD).length} jobs below ${SCORE_THRESHOLD}% match - Click to view`;
         }
     });
 
@@ -1217,6 +1486,74 @@ document.addEventListener('DOMContentLoaded', () => {
         const updatedDate = new Date(job.updated_at);
         document.getElementById('modal-job-scraped').textContent = scrapedDate.toLocaleDateString('en-US', {month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit'});
         document.getElementById('modal-job-updated').textContent = updatedDate.toLocaleDateString('en-US', {month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit'});
+
+        // Parse and display score details
+        const scoreDetailsSection = document.getElementById('score-details-section');
+        const scoreGrid = document.getElementById('modal-score-grid');
+        const scoreReasoning = document.getElementById('modal-score-reasoning');
+
+        if (job.score_details) {
+            try {
+                const details = JSON.parse(job.score_details);
+
+                // Populate score grid
+                scoreGrid.innerHTML = `
+                    <div class="score-detail-card">
+                        <div class="score-detail-label">Skillset</div>
+                        <div class="score-detail-value">${details.skillset}%</div>
+                    </div>
+                    <div class="score-detail-card">
+                        <div class="score-detail-label">Academic</div>
+                        <div class="score-detail-value">${details.academic}%</div>
+                    </div>
+                    <div class="score-detail-card">
+                        <div class="score-detail-label">Experience</div>
+                        <div class="score-detail-value">${details.experience}%</div>
+                    </div>
+                    <div class="score-detail-card">
+                        <div class="score-detail-label">Professional</div>
+                        <div class="score-detail-value">${details.professional}%</div>
+                    </div>
+                    <div class="score-detail-card">
+                        <div class="score-detail-label">Language</div>
+                        <div class="score-detail-value">${details.language}%</div>
+                    </div>
+                    <div class="score-detail-card">
+                        <div class="score-detail-label">Preference</div>
+                        <div class="score-detail-value">${details.preference}%</div>
+                    </div>
+                `;
+
+                // Populate reasoning
+                let reasoningHTML = '';
+                if (details.reasoning) {
+                    if (details.reasoning.strengths && details.reasoning.strengths.length > 0) {
+                        reasoningHTML += '<h4 class="score-reasoning-strengths">✓ Strengths</h4><ul class="score-reasoning-strengths">';
+                        details.reasoning.strengths.forEach(strength => {
+                            reasoningHTML += `<li>${strength}</li>`;
+                        });
+                        reasoningHTML += '</ul>';
+                    }
+                    if (details.reasoning.concerns && details.reasoning.concerns.length > 0) {
+                        reasoningHTML += '<h4 class="score-reasoning-concerns">⚠ Concerns</h4><ul class="score-reasoning-concerns">';
+                        details.reasoning.concerns.forEach(concern => {
+                            reasoningHTML += `<li>${concern}</li>`;
+                        });
+                        reasoningHTML += '</ul>';
+                    }
+                    if (details.reasoning.summary) {
+                        reasoningHTML += `<div class="score-reasoning-summary">${details.reasoning.summary}</div>`;
+                    }
+                }
+                scoreReasoning.innerHTML = reasoningHTML;
+                scoreDetailsSection.style.display = 'block';
+            } catch (e) {
+                console.error('Error parsing score details:', e);
+                scoreDetailsSection.style.display = 'none';
+            }
+        } else {
+            scoreDetailsSection.style.display = 'none';
+        }
 
         const modalButton = document.getElementById('modal-shortlist-button');
         const modalText = document.getElementById('modal-shortlist-text');

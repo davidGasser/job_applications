@@ -1,5 +1,6 @@
 from datetime import datetime
 from flask_sqlalchemy import SQLAlchemy
+import json
 
 db = SQLAlchemy()
 
@@ -34,7 +35,8 @@ class Job(db.Model):
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
     status = db.Column(db.String(50), nullable=False, default='New') # New, Interested, Applied, Interviewing, Offer, Rejected
     shortlisted = db.Column(db.Boolean, nullable=False, default=False)
-    matching_score = db.Column(db.Float, nullable=False, default=0.0) # 0-100 percentage score
+    matching_score = db.Column(db.Float, nullable=False, default=0.0) # 0-100 percentage score (overall score)
+    score_details = db.Column(db.Text, nullable=True) # JSON string with full scoring breakdown
     notes = db.Column(db.Text, nullable=True)
     search_criteria_id = db.Column(db.Integer, db.ForeignKey('search_criteria.id'), nullable=True)
     search_criteria = db.relationship('SearchCriteria', backref=db.backref('jobs', lazy=True))

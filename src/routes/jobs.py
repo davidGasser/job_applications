@@ -212,7 +212,10 @@ def get_scrape_jobs(scrape_id):
             'application_link': job.application_link,
             'shortlisted': job.shortlisted,
             'matching_score': job.matching_score,
+            'score_details': job.score_details,
             'scraped_at': job.scraped_at.isoformat(),
+            'updated_at': job.updated_at.isoformat(),
+            'search_criteria_id': job.search_criteria_id,
             'search_criteria': {
                 'keywords': job.search_criteria.keywords,
                 'locations': job.search_criteria.locations

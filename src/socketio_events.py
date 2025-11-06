@@ -1,10 +1,11 @@
 import logging
-from models import db, SearchCriteria, Job
+from models import db, SearchCriteria, Job, UserProfile
 from scrapers import LinkedInScraper
 from queue import Queue
 from concurrent.futures import ThreadPoolExecutor
 import threading
 from sqlalchemy.exc import IntegrityError
+import json
 
 from job_scoring import score_job
 
@@ -44,8 +45,19 @@ def register_socketio_events(socketio, app):
             """
             # worker_logger.info(f"Worker {worker_id} started")
 
-            cv_text = 
-            preferences = 
+            # Load CV and preferences once, outside the loop
+            with app.app_context():
+                user_profile = UserProfile.query.first()
+                if user_profile:
+                    cv_text = user_profile.cv_text or ""
+                    preferences = user_profile.job_preferences or ""
+                else:
+                    cv_text = ""
+                    preferences = ""
+
+                if not cv_text or not preferences:
+                    queue_logger.warning("No user profile found. Jobs will be assigned default score of 80.")
+
             while True:
                 job_data = queue.get()  # Blocks here waiting for a job
 
@@ -73,12 +85,32 @@ def register_socketio_events(socketio, app):
                         if exists:
                             queue_logger.info(f"Found and skipped duplicate: {job_data['title']}")
                         else:
-                            
-                            score_dict = score_job(job_data["description"], cv_text, preferences)
-                            job_data["matching_score"] = score_dict
+                            # Score the job
+                            if not cv_text or not preferences:
+                                # No CV/preferences available, use default score of 80
+                                score_dict = {
+                                    "skillset": 80,
+                                    "academic": 80,
+                                    "experience": 80,
+                                    "professional": 80,
+                                    "language": 80,
+                                    "preference": 80,
+                                    "overall": 80,
+                                    "reasoning": {
+                                        "strengths": ["No CV/preferences provided - default score applied"],
+                                        "concerns": [],
+                                        "summary": "Default score applied due to missing user profile information."
+                                    }
+                                }
+                                matching_score = 80.0
+                            else:
+                                # Score using the LLM
+                                score_dict = score_job(job_data, cv_text, preferences)
+                                matching_score = float(score_dict.get("overall", 0))
 
-                            # Placeholder score for now
-                            job_data["matching_score"] = 0.0
+                            # Store the overall score and full details
+                            job_data["matching_score"] = matching_score
+                            job_data["score_details"] = json.dumps(score_dict)
 
                             try:
                                 # Save to database
