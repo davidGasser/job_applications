@@ -6,6 +6,9 @@ from concurrent.futures import ThreadPoolExecutor
 import threading
 from sqlalchemy.exc import IntegrityError
 
+from job_scoring import score_job
+
+
 # Setup component-specific loggers
 # worker_logger = logging.getLogger('workers')
 queue_logger = logging.getLogger('queue')
@@ -41,6 +44,8 @@ def register_socketio_events(socketio, app):
             """
             # worker_logger.info(f"Worker {worker_id} started")
 
+            cv_text = 
+            preferences = 
             while True:
                 job_data = queue.get()  # Blocks here waiting for a job
 
@@ -68,9 +73,9 @@ def register_socketio_events(socketio, app):
                         if exists:
                             queue_logger.info(f"Found and skipped duplicate: {job_data['title']}")
                         else:
-                            # TODO: Rate the job with Ollama (only for new jobs)
-                            # score = rate_job(job_data["description"], cv_text, preferences)
-                            # job_data["matching_score"] = score
+                            
+                            score_dict = score_job(job_data["description"], cv_text, preferences)
+                            job_data["matching_score"] = score_dict
 
                             # Placeholder score for now
                             job_data["matching_score"] = 0.0

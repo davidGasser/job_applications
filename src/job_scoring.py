@@ -1,17 +1,21 @@
 import ollama 
-import logging 
 import os 
-import time
-
-def score_job(model:str, job:str, cv:str, preferences:str):
+# import time
+import json
     
+def score_job(job:str, cv:str, preferences:str, model:str="qwen2.5:3b"):
+    """
+    Compare job positions with the CV and the preference statement of the applicant.
+    Returns a verified JSON file, with different rantings (int) and assessments (str).
+    If the model is changed the ouptut might not be converted to string correctly.
+    """
     ollama_host = os.getenv('OLLAMA_HOST', 'http://localhost:11434')
     client = ollama.Client(host=ollama_host)
     client.pull(model)
     
     prompt ="""
             Your task is to rate how well job postings fit a provided CV and preference statement.
-            You are rooting for the applicant but you should remain realistic.
+            For all assessments, always rate the applicant in regard to the job position, not in general.
             Rate each criterion from 0 (worst fit) to 100 (best fit):
 
             1. Skillset Match: Does the applicant possess the required technical/soft skills, 
@@ -64,26 +68,56 @@ def score_job(model:str, job:str, cv:str, preferences:str):
                 COMPANY: {job["company"]}
                 DESCRIPTION: {job["description"]}
                 """
-    start_time = time.time()
-    response = client.chat(
-        model, 
-        messages = [
-            {"role": "system", "content": prompt},
-            {"role": "user", "content": message}
-        ],
-        stream = False,
-        options = {
-            "temperature": 0
-        }
-    )    
-    print("-"*60)
-    print(f"Response time: {(time.time()-start_time):.3f}")
-    print("-"*60)
-    return response["message"]["content"]
+    
+    # give the model three tries to output a valid json format
+    response_json = None
+    for i in range(3): 
+        response = client.chat(
+            model, 
+            messages = [
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": message}
+            ],
+            stream = False,
+            options = {
+                "temperature": 0
+            }
+        ) 
+        try: 
+            response_json = json.loads(response["message"]["content"][7:-3])
+            break
+        except:
+            print(f"Model did not produce a valid json string on try {i}")
+    
+    if response_json == None: 
+        raise RuntimeError("Scoring model was not able to return a valid JSON string in three tries.")
+    
+    return response_json
+    # return _calculate_final_score(response_json)
 
+# def _calculate_final_score(score_dict):
+#     """
+#     Certain scores are more important than others.
+#     This function reweights the assessments made.
+#     """
+
+#     score_dict["skillset"]
+#     score_dict["academic"]
+#     score_dict["experience"]
+#     score_dict["professional"]
+#     score_dict["language"]
+#     score_dict["preference"]
+#     score_dict["overall"]
+    
+#     final = 
+                
+                
 if __name__ == "__main__": 
-    model = "llama3.2:latest"
-    job = {
+    model_llama = "llama3.2:latest"
+    model_qwen = "qwen2.5:3b"
+    model_granite = "granite4:latest"
+    
+    job1 = {
         "title": "AI Consultant (all genders)",
         "company": "Lufthansa Industry Solutions",
         "description": """
@@ -249,8 +283,23 @@ if __name__ == "__main__":
                 the same thing over and over. When it comes to the type of company, I am open for both larger companies and start ups, as long 
                 as they provide a good working athmosphere, great pay, and good benefits."""
     
-    result = score_job(model, job2, cv, preferences)
-    print(result)
-    with open("result.txt", "w") as f: 
-        f.write(result)
+    result = score_job(job1, cv, preferences, model_qwen)
+    with open("result_qwen_job1_prompt2.json", "w") as f: 
+        json.dump(result, f, indent=2)
     
+    # total_time = 0
+    # idx = 0
+    # for i in range(500): 
+    #     print("Iteration", i)
+    #     start_time = time.time()
+    #     result = score_job(model_llama, job2, cv, preferences)
+    #     total_time += time.time() - start_time
+    #     idx += 1
+    #     print(f"Current average: {total_time / idx:.3f}")
+    #     #with open("result_llama_3_2b_job1.json", "w") as f: 
+    #     # with open("result_qwen_2_3b_job2.json", "w") as f: 
+    #     #     json.dump(result, f, indent=2)
+    
+    # print("-"*60)
+    # print(f"Response time: {(total_time/idx):.3f}")
+    # print("-"*60)
