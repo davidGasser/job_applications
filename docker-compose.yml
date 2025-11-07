@@ -1,36 +1,36 @@
 services:
-#   db:
-#     image: postgres:16-alpine
-#     restart: always
-#     environment:
-#       - POSTGRES_USER=user
-#       - POSTGRES_PASSWORD=password
-#       - POSTGRES_DB=jobs
-#     volumes:
-#       - postgres_data:/var/lib/postgresql/data/
-#     ports:
-#       - '5433:5432'
+  # db:
+  #   image: postgres:16-alpine
+  #   restart: always
+  #   environment:
+  #     - POSTGRES_USER=user
+  #     - POSTGRES_PASSWORD=password
+  #     - POSTGRES_DB=jobs
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data/
+  #   ports:
+  #     - '5433:5432'
 
-#   app:
-#     build: .
-#     restart: always
-#     ports:
-#       - '5000:5000'
-#       - '5678:5678'
-#     volumes:
-#       - .:/app
-#     depends_on:
-#       - db
-#       - selenium
-#       - ollama
-#     environment:
-#       - TZ=Europe/Berlin
-#       - DATABASE_URL=postgresql://user:password@db:5432/jobs
-#       - FLASK_APP=src/main.py
-#       - FLASK_DEBUG=1
-#       - ENABLE_DEBUGPY=1
-#       - OLLAMA_HOST=http://ollama:11434
-#     command: python -Xfrozen_modules=off src/main.py
+  # app:
+  #   build: .
+  #   restart: always
+  #   ports:
+  #     - '5000:5000'
+  #     - '5678:5678'
+  #   volumes:
+  #     - .:/app
+  #   depends_on:
+  #     - db
+  #     - selenium
+  #     - ollama
+  #   environment:
+  #     - TZ=Europe/Berlin
+  #     - DATABASE_URL=postgresql://user:password@db:5432/jobs
+  #     - FLASK_APP=src/main.py
+  #     - FLASK_DEBUG=1
+  #     - ENABLE_DEBUGPY=1
+  #     - OLLAMA_HOST=http://ollama:11434
+  #   command: python -Xfrozen_modules=off src/main.py
 
   # selenium:
   #   image: selenium/standalone-chrome:latest
@@ -38,8 +38,10 @@ services:
   #   restart: always
   #   ports:
   #     - '4444:4444'
+  
   dev: 
     build: .
+    container_name: dev
     volumes:
       - .:/app
     working_dir: /app
@@ -47,11 +49,9 @@ services:
     tty: true
     command: /bin/bash
     environment:
-      - DATABASE_URL=postgresql://user:password@db:5432/jobs
       - OLLAMA_HOST=http://ollama:11434
-    depends_on:
-      - ollama
     
+
   ollama:
     image: ollama/ollama:latest
     container_name: ollama

@@ -1,9 +1,9 @@
 import ollama 
 import os 
-# import time
+import time
 import json
     
-def score_job(job:str, cv:str, preferences:str, model:str="qwen2.5:3b"):
+def score_job(job:dict, cv:str, preferences:str, model:str):
     """
     Compare job positions with the CV and the preference statement of the applicant.
     Returns a verified JSON file, with different rantings (int) and assessments (str).
@@ -15,7 +15,6 @@ def score_job(job:str, cv:str, preferences:str, model:str="qwen2.5:3b"):
     
     prompt ="""
             Your task is to rate how well job postings fit a provided CV and preference statement.
-            For all assessments, always rate the applicant in regard to the job position, not in general.
             Rate each criterion from 0 (worst fit) to 100 (best fit):
 
             1. Skillset Match: Does the applicant possess the required technical/soft skills, 
@@ -30,17 +29,18 @@ def score_job(job:str, cv:str, preferences:str, model:str="qwen2.5:3b"):
             4. Professional Experience: Does the applicant have relevant industry/domain 
             experience and comparable role experience?
             
-            5. Language Requirements: Can the applicant meet all language requirements 
-            (both for understanding the posting and for the role itself)?
+            5. Language Requirements: What language is the job posting in? Where is the job located?
+            What languages does the applicant speak? what languages are required by the job posting?
+            Do you believe that the applicant fulfills the language requirements for this job?
             
             6. Preference Alignment: Does the role, company, location, and work style match 
             the applicant's stated preferences?
             
             7. Overall Assessment: Considering all factors, how successful and satisfied 
             would the applicant likely be in this role?
-
+        
             OUTPUT FORMAT
-            valid JSON, set your inner verbosity to 0! No extra output, just the JSON:
+            valid JSON in necessary. Otherwise severe punishment! set your inner verbosity to 0! No extra output, just the JSON:
             {
                 "skillset": <0-100>,
                 "academic": <0-100>,
@@ -80,14 +80,18 @@ def score_job(job:str, cv:str, preferences:str, model:str="qwen2.5:3b"):
             ],
             stream = False,
             options = {
+                "num_predict": -1,
                 "temperature": 0
             }
         ) 
+        print(response["message"]["content"])
+        break
         try: 
-            response_json = json.loads(response["message"]["content"][7:-3])
+            response_json = json.loads(response["message"]["content"][3:-3])
             break
         except:
-            print(f"Model did not produce a valid json string on try {i}")
+            print(f"Model did not produce a valid json string on try {i}. Final output:")
+            print(response["message"]["content"])
     
     if response_json == None: 
         raise RuntimeError("Scoring model was not able to return a valid JSON string in three tries.")
@@ -111,11 +115,89 @@ def score_job(job:str, cv:str, preferences:str, model:str="qwen2.5:3b"):
     
 #     final = 
                 
-                
+def chat(job, cv, preferences, model):
+    
+    ollama_host = os.getenv('OLLAMA_HOST', 'http://localhost:11434')
+    client = ollama.Client(host=ollama_host)
+    client.pull(model)
+    
+    
+    prompt = f"""
+            Create a keywords for each of these to answer questions later: 
+            1. Skillset Match: Does the applicant possess the required technical/soft skills, 
+            or could they acquire them quickly given their background?
+            
+            2. Academic Requirements: Are degree requirements, field of study, and grade 
+            thresholds (if specified) met?
+            
+            3. Experience Level: Is the applicant appropriately qualified (not under or 
+            over-qualified) for the seniority level?
+            
+            4. Professional Experience: Does the applicant have relevant industry/domain 
+            experience and comparable role experience?
+            
+            5. Language Requirements: What language is the job posting in? Where is the job located?
+            What languages does the applicant speak? what languages are required by the job posting?
+            Do you believe that the applicant fulfills the language requirements for this job?
+        """
+    msg = job["description"]
+    
+    response = client.chat(
+        model = model, 
+        messages = [
+            {"role": "system", "content": prompt},
+            {"role": "user", "content": msg}
+        ],
+        stream = False,
+        options = {
+            "temperature": 0
+        }
+    )
+    
+    print(response["message"]["content"])
+    # questions = [
+    #         """Skillset Match: Does the applicant possess the required technical/soft skills, 
+    #         or could they acquire them quickly given their background?""",
+            
+    #         """Academic Requirements: Are degree requirements, field of study, and grade 
+    #         thresholds (if specified) met?""",
+            
+    #         """Experience Level: Is the applicant appropriately qualified (not under or 
+    #         over-qualified) for the seniority level?""",
+            
+    #         """Professional Experience: Does the applicant have relevant industry/domain 
+    #         experience and comparable role experience?""",
+            
+    #         """Language Requirements: What language is the job posting in? Where is the job located?
+    #         What languages does the applicant speak? what languages are required by the job posting?
+    #         Do you believe that the applicant fulfills the language requirements for this job?""",
+            
+    #         """Preference Alignment: Does the role, company, location, and work style match 
+    #         the applicant's stated preferences?""",
+            
+    #         """Overall Assessment: Considering all factors, how successful and satisfied 
+    #         would the applicant likely be in this role?"""
+    # ]
+    
+    # context = None
+    # for q in questions: 
+    #     response = ollama.generate(
+    #             model, 
+    #             prompt = prompt + q,
+    #             stream = False,
+    #             options = {
+    #                 "num_predict": -1,
+    #                 "temperature": 0
+    #             },
+    #             context = context
+    #         ) 
+    #     context = response["context"]
+    
+    #     print(response["response"])
+    
 if __name__ == "__main__": 
     model_llama = "llama3.2:latest"
     model_qwen = "qwen2.5:3b"
-    model_granite = "granite4:latest"
     
     job1 = {
         "title": "AI Consultant (all genders)",
@@ -163,7 +245,7 @@ if __name__ == "__main__":
             """
     }
     
-    job2 = {
+    job_no_pref = {
         "title": "Junior Trade Marketing Manager (m/w/d)",
         "company": "KoRo",
         "description": """
@@ -223,6 +305,103 @@ if __name__ == "__main__":
             Du möchtest mit Deinen Fähigkeiten und Talenten Deinen Teil zu unserer Mission beitragen und die Zukunft von KoRo aktiv mitgestalten? Dann bewirb Dich jetzt und werde Mitglied unseres Teams!
             """
     }
+    
+    job_no_lang = {
+        "title": "AIコンサルタント(生成AI領域/AIデータプラットフォーム「FastLabel」)",
+        "company": "FastLabel株式会社",
+        "description": """
+        【仕事内容】
+
+        【職務内容】
+
+        同社はグローバルで100兆円を超える市場を対象に、AIインフラを創造し、
+
+        日本を再び世界レベルへ押し上げることを目指しております。
+
+        2020年1月の創業以来、教師データ作成を核として、AI開発の各工程を
+
+        効率化・高度化するためのプロフェッショナルサービスと
+
+        AIデータプラットフォーム「FastLabel」を提供しております。
+
+        高品質なデータを収集し、専門人材による教師データ作成を通して、
+
+        日本を代表する生成AI企業のAI開発に貢献しております。
+
+        生成AIに取り組むお客様に対し、データ収集・作成の支援も行っております。
+
+        【具体的には】
+
+        ・ 生成AI領域のAIデータプロジェクトにおける
+
+        プロジェクトマネジメント（全体工程設計、進捗管理、リソース管理）
+
+        ・ 詳細要件定義（仕様書及びデータに基づく要件の洗い出し、整理、並びに要件擦り合わせ）
+
+        ・ デリバリー（詳細要件書及び手順マニュアルの作成、作業者への手順説明、作業品質管理、納品対応）
+
+        ・ リピート案件の獲得、他事業部との連携による顧客攻略
+
+        ・ 主な業務内容
+
+        ・ グローバル規模のAIデータ関連事業
+
+        ・ 生成AIを活用した業務効率化の支援
+
+        ・ AIデータプラットフォーム「FastLabel」の提供
+
+        ・ 生成AI領域におけるコンサルティング（データ分布や仕様の策定支援）
+
+        【求める人材】
+
+        【必須】
+
+        ・ お客様との深い信頼関係の構築経験
+
+        ・ 積極的に技術や知識を身につけられる、学習意欲が高い方
+
+        ・ 他部門やパートナー企業様と円滑なコミュニケーションを通し、人を巻き込む能力
+
+        ・ 構想策定、要件定義など、クライアントの意見をまとめあげ、やるべきことを決める業務の経験
+
+        ・ プロジェクトマネジメントやベンダーコントロールの経験2年以上
+
+        【歓迎】
+
+        ・ Webアプリケーションプロダクト・ソフトウェア提供企業におけるCS経験、またはそれに準ずる経験1年以上
+
+        ・ エンタープライズのお客様へのアップセル・クロスセル提案経験
+
+        ・ 開発チームとの協業経験
+
+        ・ 機械学習や自動運転に関する知識・経験
+
+        【給与】
+
+        年収750~1200万円,※職務経験を考慮のうえ決定いたします。
+
+        【勤務地】
+
+        東京都新宿区
+
+        【勤務時間】
+
+        09:00～18:00
+
+        【雇用・契約形態】
+
+        【待遇・福利厚生】
+
+        通勤手当 残業手当
+
+        【休日・休暇】
+
+        慶弔休暇 年末年始 夏期休暇 有給休暇 完全週休2日制（土日、祝祭日、年末年始等） 有給休暇 慶弔休暇 生理休暇 出産育児・介護休業
+        """
+    }
+    
+    
+    
     cv = """
             David Gasser CURRICULUM VITAE
             E-Mail davidgasser12@gmail.com LinkedIn linkedin.com/in/d-gasser
@@ -281,25 +460,19 @@ if __name__ == "__main__":
                 The team and working environment matters a lot to me. I want to have the opportunity for growth and mentorship. Those are two 
                 very important things for me. I prefer working on something new or multi-faceted, then pure implementation. It should not be 
                 the same thing over and over. When it comes to the type of company, I am open for both larger companies and start ups, as long 
-                as they provide a good working athmosphere, great pay, and good benefits."""
+                as they provide a good working athmosphere, great pay, and good benefits.
+                """
     
-    result = score_job(job1, cv, preferences, model_qwen)
-    with open("result_qwen_job1_prompt2.json", "w") as f: 
-        json.dump(result, f, indent=2)
     
-    # total_time = 0
-    # idx = 0
-    # for i in range(500): 
-    #     print("Iteration", i)
-    #     start_time = time.time()
-    #     result = score_job(model_llama, job2, cv, preferences)
-    #     total_time += time.time() - start_time
-    #     idx += 1
-    #     print(f"Current average: {total_time / idx:.3f}")
-    #     #with open("result_llama_3_2b_job1.json", "w") as f: 
-    #     # with open("result_qwen_2_3b_job2.json", "w") as f: 
-    #     #     json.dump(result, f, indent=2)
+    #chat(cv, preferences, job_no_lang, model_qwen)
     
-    # print("-"*60)
-    # print(f"Response time: {(total_time/idx):.3f}")
-    # print("-"*60)
+    
+    start_time = time.time()
+    result = chat(job_no_lang, cv, preferences, model_qwen)
+    
+    print("-"*60)
+    print(f"Response time: {(time.time()-start_time):.3f}")
+    print("-"*60)
+    with open("result_qwen_job_no_lang_prompt2.json", "w") as f: 
+        json.dump(result, f, indent=2)    
+    
