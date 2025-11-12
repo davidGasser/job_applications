@@ -2,5 +2,6 @@
 *.log
 /data
 /uploads
+/output_ollama
 /output
 */__pycache__*

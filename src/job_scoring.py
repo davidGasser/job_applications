@@ -364,9 +364,9 @@ if __name__ == "__main__":
     model_gemma = "gemma3:4b"
     model_deep_seek = "deepseek-r1:7b-qwen-distill-q4_K_M"
     models = [
-            model_llama_3b_q4,model_llama_3b_q5,model_llama_3b_q6,
-            # model_qwen_1_7b_q4,
-            model_qwen_4b_q4,model_qwen_8b_q4,
+            #model_llama_3b_q4,model_llama_3b_q5,model_llama_3b_q6,
+            # model_qwen_1_7b_q4,model_qwen_4b_q4,
+            model_qwen_8b_q4,
             model_mistral_7b_q4,model_mistral_7b_q5,model_mistral_nemo_q4,
             model_mistral_nemo_q2,
             model_gemma, 
