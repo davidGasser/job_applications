@@ -5,7 +5,8 @@ import time
 import json
 from pathlib import Path
 from pydantic import BaseModel
-
+import uuid
+import requests
 
 class Reasoning(BaseModel):
     strengths: str
@@ -40,74 +41,73 @@ class Rating(BaseModel):
     overall: CriterionRating
 
 
-def score_job(job: dict, cv: str, preferences: str, model: str = "llama-3.2-3b-instruct", **kwargs):
+def score_job(job:dict, cv:str, preferences:str, model:str, **kwargs):
     """
     Compare job positions with the CV and the preference statement of the applicant.
     Returns a verified JSON file, with different rantings (int) and assessments (str).
-    Uses llama-cpp-python for fast inference with KV caching.
-    """
-    llamacpp_host = os.getenv('LLAMACPP_HOST', 'http://localhost:11434')
-    client = OpenAI(
-        base_url=f"{llamacpp_host}/v1",
-        api_key="dummy-key"  # llama-cpp-python doesn't require real API keys
-    )
-
-    prompt = """
+    If the model is changed the ouptut might not be converted to string correctly.
+    """  
+    
+    ollama_host = os.getenv('OLLAMA_HOST', 'http://localhost:11434')
+    client = ollama.Client(host=ollama_host)
+    client.pull(model)
+        
+    prompt ="""
             Your task is to rate how well job postings fit a provided CV and preference statement.
-            Your rating scale is:
+            Your rating scale is: 
             0 = Critical mismatch, 25 = Poor match, 50 = Acceptable, 75 = Good match, 100 = Excellent match
             Make small adjustments of ±5-10 points if needed
-
+            
             THE CRITERIA:
-            1. Skillset Match: Does the applicant possess the required technical/soft skills,
+            1. Skillset Match: Does the applicant possess the required technical/soft skills, 
             or could they acquire them quickly given their background?
-
-            2. Academic Requirements: Are degree requirements, field of study, and grade
+            
+            2. Academic Requirements: Are degree requirements, field of study, and grade 
             thresholds (if specified) met?
-
-            3. Experience Level: Is the applicant appropriately qualified (not under or
+            
+            3. Experience Level: Is the applicant appropriately qualified (not under or 
             over-qualified) for the seniority level?
-
-            4. Professional Experience: Does the applicant have relevant industry/domain
+            
+            4. Professional Experience: Does the applicant have relevant industry/domain 
             experience and comparable role experience?
-
+            
             5. Language Requirements: What languages does the applicant speak? What languages are required by the job posting?
             Can they read the job description?
-
-            6. Preference Alignment: Does the role, company, location, and work style match
+            
+            6. Preference Alignment: Does the role, company, location, and work style match 
             the applicant's stated preferences?
-
-            7. Overall Assessment: Considering all factors, how successful and satisfied
+            
+            7. Overall Assessment: Considering all factors, how successful and satisfied 
             would the applicant likely be in this role?
             """
-    message = f"""
-                # CV:
+    message = f"""                
+                # CV: 
                 {cv}
-
+                
                 # PREFERENCES:
                 {preferences}
-
+                
                 # JOB DETAILS
                 TITLE: {job["title"]}
                 COMPANY: {job["company"]}
                 DESCRIPTION: {job["description"]}
                 """
-
-    response = client.chat.completions.create(
-        model=model,
-        messages=[
+    
+    response = client.chat(
+        model, 
+        messages = [
             {"role": "system", "content": prompt},
             {"role": "user", "content": message}
         ],
-        stream=False,
-        options={
+        stream = False,
+        options = {
             "num_predict": -1,
             "temperature": 0
-        },
-        response_format={"type": "json_object"}
-    )
+        }, 
+        format = Score.model_json_schema()
+    ) 
 
-    return Score.model_validate_json(response.choices[0].message.content).model_dump_json(indent=2)
+    return Score.model_validate_json(response.message.content).model_dump_json(indent=2)
 
 
 def summarize(job, cv, preferences, model, **kwargs):
@@ -272,76 +272,109 @@ def score_with_summary(job, cv, preferences, model, **kwargs):
 
 
 def score_separately(job, cv, preferences, model, **kwargs):
+    llamacpp_host = os.getenv('LLAMACPP_HOST', 'http://localhost:11434')
 
-    ollama_host = os.getenv('OLLAMA_HOST', 'http://localhost:11434')
-    client = ollama.Client(host=ollama_host)
-    client.pull(model)
-
-    prompt = f"""
-            Your task is to rate how well job postings fit a provided CV and preference statement.
-            Your rating scale is:
-            0 = Critical mismatch, 25 = Poor match, 50 = Acceptable, 75 = Good match, 100 = Excellent match
-            Make small adjustments of ±5-10 points if needed
-            """
-
+    # Combine prompt and context to reduce redundancy
+    system_prompt = f"""Your task is to rate how well job postings fit a provided CV and preference statement.
+    Your rating scale is:
+    0 = Critical mismatch, 25 = Poor match, 50 = Acceptable, 75 = Good match, 100 = Excellent match
+    Make small adjustments of ±5-10 points if needed.
+    """
     context = f"""
-            CV:
-            {cv}
+    CV:
+    {cv}
 
-            PREFERENCES:
-            {preferences}
+    PREFERENCES:
+    {preferences}
 
-            JOB DETAILS
-            TITLE: {job["title"]}
-            COMPANY: {job["company"]}
-            DESCRIPTION: {job["description"]}
-            """
+    JOB DETAILS
+    TITLE: {job["title"]}
+    COMPANY: {job["company"]}
+    DESCRIPTION: {job["description"]}
+
+    OUTPUT FORMAT: JASON of 
+    {{
+        skillset: 0-100
+        academic: 0-100
+        experience: 0-100
+        professional: 0-100
+        language: 0-100
+        preference: 0-100
+        overall: 0-100
+    }}
+    """
 
     questions = [
-            "Skillset Match: Does the applicant possess the required technical/soft skills, \
-            or could they acquire them quickly given their background?",
-
-            "Academic Requirements: Are degree requirements, field of study, and grade \
-            thresholds (if specified) met?",
-
-            "Experience Level: Is the applicant appropriately qualified (not under or \
-            over-qualified) for the seniority level?",
-
-            "Professional Experience: Does the applicant have relevant industry/domain \
-            experience and comparable role experience?",
-
-            "Language Requirements: What languages does the applicant speak? What languages are required by the job posting?\
-            Can they read the job description?",
-
-            "Preference Alignment: Does the role, company, location, and work style match \
-            the applicant's stated preferences?",
-
-            "Overall Assessment: Considering all factors, how successful and satisfied \
-            would the applicant likely be in this role?",
+        "Skillset Match: Does the applicant possess the required technical/soft skills, or could they acquire them quickly given their background?",
+        "Academic Requirements: Are degree requirements, field of study, and grade thresholds (if specified) met?",
+        "Experience Level: Is the applicant appropriately qualified (not under or over-qualified) for the seniority level?",
+        "Professional Experience: Does the applicant have relevant industry/domain experience and comparable role experience?",
+        "Language Requirements: What languages does the applicant speak? What languages are required by the job posting? Can they read the job description?",
+        "Preference Alignment: Does the role, company, location, and work style match the applicant's stated preferences?",
+        "Overall Assessment: Considering all factors, how successful and satisfied would the applicant likely be in this role?",
     ]
 
-    answers = []
-    for q in questions:
-        response = client.chat(
-            model,
-            messages=[
-                {"role": "system", "content": prompt},
-                {"role": "assistant", "content": context},
-                {"role": "user", "content": q}
-            ],
-            stream=False,
-            options={
-                "num_predict": -1,
-                "temperature": 0
-            },
-        )
-        answers.append(response.message.content)
-
-    return "\n".join(answers)
+    # answers = []
+    
+    # session_id = str(uuid.uuid4())
+    # start = time.time()
+    # requests.post(  
+    #     f"{llamacpp_host}/v1/completions", 
+    #     json = {
+    #         "model": model,
+    #         "prompt": f"{system_prompt}\n\n{context}",
+    #         "session_id": session_id,
+    #         "n_predict": 0
+    #     }
+    # )
+    # print("#"*60,"\n", f"prompt: {time.time()-start:.3f}","\n","#"*60)
+    # for q in questions:
+    #     start = time.time()
+    #     response = requests.post(  
+    #         f"{llamacpp_host}/v1/chat/completions", 
+    #         json = {
+    #             "model": model,
+    #             "messages": [
+    #                 {"role": "system", "content": f"{system_prompt}\n\n{context}"},
+    #                 {"role": "user", "content": q}
+    #             ],
+    #             "session_id": session_id,
+    #             "temperature": 0,
+    #             "n_predict": 25,
+    #             "prompt_cache_ro": True,
+    #             "response_format": {"type": "json_object"}
+    #         }
+    #     )
+    #     print("#"*60,"\n", f"tpq: {time.time()-start:.3f}","\n","#"*60)
+    #     answers.append(response.json()["choices"][0]["message"]["content"])
+    # return "\n".join(answers)
+    messages = [{"role": "system", "content": f"{system_prompt}\n\n{context}"}]
+    [messages.append({"role": "user", "content": q}) for q in questions]
+    
+    response = requests.post(  
+        f"{llamacpp_host}/v1/chat/completions", 
+        json = {
+            "model": model,
+            "messages": messages,
+            # "session_id": session_id,
+            "temperature": 0,
+            "n_predict": 25,
+            # "prompt_cache_ro": True,
+            "response_format": {"type": "json_object"}
+        }
+    )
+    return response.json()["choices"][0]["message"]["content"]
 
 
 if __name__ == "__main__":
 
+    import debugpy
+    debugpy.listen(("0.0.0.0", 5678))
+    print("⏳ Debugger listening on port 5678...")
+    # Uncomment to make app wait for debugger before continuing:
+    debugpy.wait_for_client()
+    print("✅ Ready for debugger attachment")
+        
     model_llama_3b_q4 = "llama3.2:3b-instruct-q4_K_M"
     model_llama_3b_q5 = "llama3.2:3b-instruct-q5_K_M"
     model_llama_3b_q6 = "llama3.2:3b-instruct-q6_K"
@@ -1145,5 +1178,52 @@ if __name__ == "__main__":
                 """
 
     # Test with llama-cpp-python
-    result = score_job(job1, cv, preferences, model_llama_cpp)
-    print(result)
+    output_lama_cpp = Path("lama_cpp")
+    os.makedirs(output_lama_cpp, exist_ok=True)
+    for job in jobs: 
+        result = score_separately(job, cv, preferences, model_llama_cpp)
+        print(result)
+        output_file = output_lama_cpp / f"{job_to_string_map[job['title']]}.txt"
+        result = json.loads(result)
+        with open(output_file, "w") as f: 
+            json.dump(result, f, indent=2)
+    
+    
+    # output_folder_scoring = Path("output/scoring")     
+    # output_folder_summarize = Path("output/summarize")      
+    # output_folder_score_on_summary = Path("output/score_on_summary")
+    # output_folder_sum_with_score = Path("output/score_with_summary")
+    # output_folder_separate = Path("output/separate_scoring")
+    # output_folders = [output_folder_scoring, output_folder_summarize, output_folder_score_on_summary, 
+    #                   output_folder_sum_with_score, output_folder_separate]
+    
+    # ## Selection
+    # for model in models: 
+    #     for job in jobs: 
+    #         summary = None
+    #         ## testing
+    #         def test_functions(function, output_path): 
+    #             start_time = time.time()
+    #             response = function(**{"job":job, "cv":cv, "preferences":preferences, "model":model, "summary":summary})
+    #             print(response)
+    #             print("-"*60)
+    #             print(f"Response time Score Job: {(time.time()-start_time):.3f}")
+    #             print("-"*60)
+                
+    #             with open(output_path, "w") as f: 
+    #                 if type(response) == Score or type(response) == Rating:
+    #                     f.write(f"Response time: {(time.time()-start_time):.3f}\n\n{response}")
+    #                 else: 
+    #                     f.write(f"Response time: {(time.time()-start_time):.3f}\n\n{response}")
+    #             return response
+            
+            
+    #         model_folder = model_name_map[model]
+    #         [os.makedirs(out_folder / model_folder, exist_ok=True) for out_folder in output_folders]
+    #         output_file = f"{model_folder}/{job_to_string_map[job['title']]}.txt"
+            
+    #         test_functions(score_job, output_folder_scoring / output_file)
+    #         summary = test_functions(summarize, output_folder_summarize / output_file)
+    #         test_functions(score_on_summary, output_folder_score_on_summary / output_file)
+    #         test_functions(score_with_summary, output_folder_sum_with_score / output_file)
+    #         test_functions(score_separately, output_folder_separate / output_file)

@@ -39,19 +39,13 @@ RUN wget -q --show-progress \
     https://huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGUF/resolve/main/Llama-3.2-3B-Instruct-Q5_K_M.gguf \
     -O /models/llama-3.2-3b-instruct.gguf
 
-# Expose port 11434 (same as Ollama for compatibility)
+# Expose port 11434
 EXPOSE 11434
 
 # Start llama-cpp-python server with parallel processing
-# --n-parallel 4: Process up to 4 requests concurrently
-# --n-gpu-layers -1: Offload all layers to GPU
-# --n-ctx 4096: Context window size
+# --parallel 4: Number of slots for parallel request processing
+# --n_gpu_layers -1: Offload all layers to GPU (-1 = all layers)
+# --n_ctx 4096: Context window size
 # --host 0.0.0.0: Listen on all interfaces
-# --port 11434: Match Ollama port
-CMD ["python3", "-m", "llama_cpp.server", \
-     "--model", "/models/llama-3.2-3b-instruct.gguf", \
-     "--host", "0.0.0.0", \
-     "--port", "11434", \
-     "--n-gpu-layers", "-1", \
-     "--n-parallel", "4", \
-     "--n-ctx", "4096"]
+# --port 11434: Port for the server
+    CMD ["python3", "-m", "llama_cpp.server", "--model", "/models/llama-3.2-3b-instruct.gguf", "--host", "0.0.0.0", "--port", "11434", "--flash_attn", "True", "--n_gpu_layers", "-1", "--cache", "True", "--cache_type", "ram","--cache_size", "2147483648", "--n_ctx", "8192", "--n_batch", "512"]

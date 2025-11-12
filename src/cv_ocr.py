@@ -56,6 +56,7 @@ def extract_text_from_cv(path_pdf: Path, model="qwen3-vl:2b"):
         logging.warning(f"CV extraction didn't follow expected format.")
         return output.strip()
 
+
 if __name__ == "__main__": 
     
     path_cv = "/uploads/David_Gasser_public_CV_2025.pdf"
