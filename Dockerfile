@@ -20,5 +20,5 @@ COPY src/ ./src/
 COPY templates/ ./templates/
 
 # Specify the command to run on container start
-# CMD ["python", "src/main.py"]
-CMD ["bash"]
+CMD ["python", "src/main.py"]
+# CMD ["bash"]

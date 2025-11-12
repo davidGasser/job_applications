@@ -30,8 +30,8 @@ def extract_text_from_cv(path_pdf: Path, model = "qwen3-vl:2b"):
     images = _convert_cv_to_image(path_pdf)
 
     client.pull(model)
-    prompt = "Extract the text from the provided CV. Output format: [description]. No preamble. No thinking. Set your inner verbosity to 0."
-    user_content = "What does the CV say?"
+    prompt = "Extract the text from the provided CV. Always provide direct, clear answers without excessive thinking."
+    user_content = "What is the content of the CV?"
     response = client.chat(
         model=model,
         messages=[

@@ -44,10 +44,15 @@ services:
     container_name: dev
     volumes:
       - .:/app
+    ports: 
+    - "5678:5678"
     working_dir: /app
     stdin_open: true
     tty: true
     command: /bin/bash
+    depends_on:
+      # - selenium
+      - ollama
     environment:
       - OLLAMA_HOST=http://ollama:11434
     
@@ -61,6 +66,9 @@ services:
       - 11434:11434
     environment:
       - OLLAMA_KEEP_ALIVE=24h
+      - OLLAMA_FLASH_ATTENTION=true
+      - OLLAMA_KV_CACHE-TYPE=q8_0
+
     deploy:
       resources:
         reservations:
