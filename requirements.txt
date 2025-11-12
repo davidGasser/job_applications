@@ -2,6 +2,7 @@ pandas
 selenium
 beautifulsoup4
 pdf2image
+openai
 ollama
 opencv-python
 numpy

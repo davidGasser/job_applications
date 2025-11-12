@@ -8,24 +8,25 @@ import logging
 
 
 def _convert_cv_to_image(pdf_path: Path):
-    # Converts up to two page of a PDF to a PNG image.
+    # Converts up to two pages of a PDF to JPEG images in base64 format.
     images = convert_from_path(pdf_path, first_page=1, last_page=2)
-    if type(images) != list: 
+    if type(images) != list:
         images = [images]
-    for i in range(len(images)):     
+
+    base64_images = []
+    for img in images:
         buffer = io.BytesIO()
-        images[i].save(buffer, format='JPEG')  # Convert PPM to JPEG in memory
-        images[i] = base64.b64encode(buffer.getvalue()).decode('utf-8')
-    return images
+        img.save(buffer, format='JPEG')  # Convert PPM to JPEG in memory
+        base64_images.append(base64.b64encode(buffer.getvalue()).decode('utf-8'))
+    return base64_images
 
 
-def extract_text_from_cv(path_pdf: Path, model = "qwen3-vl:2b"):
-    # extracts the CV's content from the picture.
+def extract_text_from_cv(path_pdf: Path, model="qwen3-vl:2b"):
+    # Extracts the CV's content from the image using Ollama vision model.
 
-    # Create Ollama client with host from environment variable (defaults to http://localhost:11434)
-    ollama_host = os.getenv('OLLAMA_HOST', 'http://localhost:11434')
+    # Create Ollama client with host from environment variable (defaults to http://localhost:11430)
+    ollama_host = os.getenv('OLLAMA_HOST', 'http://localhost:11430')
     client = ollama.Client(host=ollama_host)
-    
 
     images = _convert_cv_to_image(path_pdf)
 
@@ -38,7 +39,7 @@ def extract_text_from_cv(path_pdf: Path, model = "qwen3-vl:2b"):
             {'role': 'system', 'content': prompt},
             {'role': 'user', 'content': user_content, 'images': images}
         ],
-        stream= False,
+        stream=False,
         options={'temperature': 0},
     )
     output = response['message']['content']

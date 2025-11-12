@@ -1,15 +1,10 @@
 import os
 import logging
 
-# --- Debugpy Setup (MUST be before any imports) ---
-# --- Debugpy Setup (MUST be before any imports) ---
 # Enable debugpy for remote debugging from VS Code
 if os.environ.get('ENABLE_DEBUGPY', '0') == '1':
     import debugpy
     debugpy.listen(("0.0.0.0", 5678))
-    print("⏳ Debugger listening on port 5678...")
-    print("   Set breakpoints in VS Code, then attach via 'Python: Remote Attach' (F5)")
-    # Uncomment to make app wait for debugger before continuing:
     print("⏳ Debugger listening on port 5678...")
     print("   Set breakpoints in VS Code, then attach via 'Python: Remote Attach' (F5)")
     # Uncomment to make app wait for debugger before continuing:
@@ -55,30 +50,7 @@ class SocketIOHandler(logging.Handler):
         self.socketio = socketio_instance
         self.prefix = prefix
 
-    def __init__(self, socketio_instance, prefix=""):
-        super().__init__()
-        self.socketio = socketio_instance
-        self.prefix = prefix
-
     def emit(self, record):
-        try:
-            # Format with clear prefix for component identification
-            log_entry = f"[{self.prefix}] {record.getMessage()}"
-            # Emit to all connected clients (namespace='/' for default)
-            self.socketio.emit('log_message', {'data': log_entry}, namespace='/')
-        except Exception as e:
-            # Fallback to stderr if socket emission fails
-            import sys
-            print(f"SocketIOHandler error: {e}", file=sys.stderr)
-            print(f"Original message: [{self.prefix}] {record.getMessage()}", file=sys.stderr)
-
-# Setup console handler for all loggers (so we see logs in Docker)
-console_handler = logging.StreamHandler()
-console_handler.setLevel(logging.INFO)
-console_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-console_handler.setFormatter(console_formatter)
-
-# Setup separate loggers for different components
         try:
             # Format with clear prefix for component identification
             log_entry = f"[{self.prefix}] {record.getMessage()}"
@@ -156,17 +128,6 @@ if __name__ == '__main__':
 
     # Disable Flask's reloader when using debugpy to avoid port conflicts
     use_reloader = os.environ.get('ENABLE_DEBUGPY', '0') != '1'
-
-    # Run with threading mode
-    # allow_unsafe_werkzeug=True is required for threading mode in development
-    # This is safe for local development; use proper WSGI server (gunicorn/uwsgi) in production
-    socketio.run(
-        app,
-        host='0.0.0.0',
-        port=5000,
-        use_reloader=use_reloader,
-        allow_unsafe_werkzeug=True
-    )
 
     # Run with threading mode
     # allow_unsafe_werkzeug=True is required for threading mode in development

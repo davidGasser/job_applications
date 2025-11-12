@@ -1,17 +1,19 @@
-import ollama 
-import os 
+from openai import OpenAI
+import os
 # import time
 import json
-    
-def score_job(job:str, cv:str, preferences:str, model:str="qwen2.5:3b"):
+
+def score_job(job:str, cv:str, preferences:str, model:str="llama-3.2-3b-instruct"):
     """
     Compare job positions with the CV and the preference statement of the applicant.
     Returns a verified JSON file, with different rantings (int) and assessments (str).
     If the model is changed the ouptut might not be converted to string correctly.
     """
-    ollama_host = os.getenv('OLLAMA_HOST', 'http://localhost:11434')
-    client = ollama.Client(host=ollama_host)
-    client.pull(model)
+    llamacpp_host = os.getenv('LLAMACPP_HOST', 'http://localhost:11434')
+    client = OpenAI(
+        base_url=f"{llamacpp_host}/v1",
+        api_key="dummy-key"  # llama-cpp-python doesn't require real API keys
+    )
     
     prompt ="""
             Your task is to rate how well job postings fit a provided CV and preference statement.
@@ -71,20 +73,18 @@ def score_job(job:str, cv:str, preferences:str, model:str="qwen2.5:3b"):
     
     # give the model three tries to output a valid json format
     response_json = None
-    for i in range(3): 
-        response = client.chat(
-            model, 
-            messages = [
+    for i in range(3):
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
                 {"role": "system", "content": prompt},
                 {"role": "user", "content": message}
             ],
-            stream = False,
-            options = {
-                "temperature": 0
-            }
-        ) 
-        try: 
-            response_json = json.loads(response["message"]["content"][7:-3])
+            stream=False,
+            temperature=0
+        )
+        try:
+            response_json = json.loads(response.choices[0].message.content[7:-3])
             break
         except:
             print(f"Model did not produce a valid json string on try {i}")
@@ -112,10 +112,10 @@ def score_job(job:str, cv:str, preferences:str, model:str="qwen2.5:3b"):
 #     final = 
                 
                 
-if __name__ == "__main__": 
-    model_llama = "llama3.2:latest"
-    model_qwen = "qwen2.5:3b"
-    model_granite = "granite4:latest"
+if __name__ == "__main__":
+    model_llama = "llama-3.2-3b-instruct"
+    # Note: Only text models are loaded by default in the server
+    # model_qwen = "qwen2.5-3b-instruct"
     
     job1 = {
         "title": "AI Consultant (all genders)",
@@ -283,8 +283,8 @@ if __name__ == "__main__":
                 the same thing over and over. When it comes to the type of company, I am open for both larger companies and start ups, as long 
                 as they provide a good working athmosphere, great pay, and good benefits."""
     
-    result = score_job(job1, cv, preferences, model_qwen)
-    with open("result_qwen_job1_prompt2.json", "w") as f: 
+    result = score_job(job1, cv, preferences, model_llama)
+    with open("result_llama_job1_prompt2.json", "w") as f:
         json.dump(result, f, indent=2)
     
     # total_time = 0
