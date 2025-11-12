@@ -1,16 +1,19 @@
-import ollama 
-import os 
+from openai import OpenAI
+import ollama
+import os
 import time
-from pathlib import Path 
+import json
+from pathlib import Path
 from pydantic import BaseModel
 
 
-class Reasoning(BaseModel): 
+class Reasoning(BaseModel):
     strengths: str
     concerns: str
     summary: str
-    
-class Score(BaseModel): 
+
+
+class Score(BaseModel):
     skillset: int
     academic: int
     experience: int
@@ -19,13 +22,15 @@ class Score(BaseModel):
     preference: int
     overall: int
     reasoning: Reasoning
-    
-class CriterionRating(BaseModel): 
+
+
+class CriterionRating(BaseModel):
     job_requirements: str
     candidate_qualifications: str
-    score: int 
-    
-class Rating(BaseModel): 
+    score: int
+
+
+class Rating(BaseModel):
     skillset: CriterionRating
     academics: CriterionRating
     experience_level: CriterionRating
@@ -33,324 +38,310 @@ class Rating(BaseModel):
     languages: CriterionRating
     preferences: CriterionRating
     overall: CriterionRating
-    
-    
-def score_job(job:dict, cv:str, preferences:str, model:str, **kwargs):
+
+
+def score_job(job: dict, cv: str, preferences: str, model: str = "llama-3.2-3b-instruct", **kwargs):
     """
     Compare job positions with the CV and the preference statement of the applicant.
     Returns a verified JSON file, with different rantings (int) and assessments (str).
-    If the model is changed the ouptut might not be converted to string correctly.
-    """  
-    
-    ollama_host = os.getenv('OLLAMA_HOST', 'http://localhost:11434')
-    client = ollama.Client(host=ollama_host)
-    client.pull(model)
-        
-    prompt ="""
+    Uses llama-cpp-python for fast inference with KV caching.
+    """
+    llamacpp_host = os.getenv('LLAMACPP_HOST', 'http://localhost:11434')
+    client = OpenAI(
+        base_url=f"{llamacpp_host}/v1",
+        api_key="dummy-key"  # llama-cpp-python doesn't require real API keys
+    )
+
+    prompt = """
             Your task is to rate how well job postings fit a provided CV and preference statement.
-            Your rating scale is: 
+            Your rating scale is:
             0 = Critical mismatch, 25 = Poor match, 50 = Acceptable, 75 = Good match, 100 = Excellent match
             Make small adjustments of ±5-10 points if needed
-            
+
             THE CRITERIA:
-            1. Skillset Match: Does the applicant possess the required technical/soft skills, 
+            1. Skillset Match: Does the applicant possess the required technical/soft skills,
             or could they acquire them quickly given their background?
-            
-            2. Academic Requirements: Are degree requirements, field of study, and grade 
+
+            2. Academic Requirements: Are degree requirements, field of study, and grade
             thresholds (if specified) met?
-            
-            3. Experience Level: Is the applicant appropriately qualified (not under or 
+
+            3. Experience Level: Is the applicant appropriately qualified (not under or
             over-qualified) for the seniority level?
-            
-            4. Professional Experience: Does the applicant have relevant industry/domain 
+
+            4. Professional Experience: Does the applicant have relevant industry/domain
             experience and comparable role experience?
-            
+
             5. Language Requirements: What languages does the applicant speak? What languages are required by the job posting?
             Can they read the job description?
-            
-            6. Preference Alignment: Does the role, company, location, and work style match 
+
+            6. Preference Alignment: Does the role, company, location, and work style match
             the applicant's stated preferences?
-            
-            7. Overall Assessment: Considering all factors, how successful and satisfied 
+
+            7. Overall Assessment: Considering all factors, how successful and satisfied
             would the applicant likely be in this role?
             """
-    message = f"""                
-                # CV: 
+    message = f"""
+                # CV:
                 {cv}
-                
+
                 # PREFERENCES:
                 {preferences}
-                
+
                 # JOB DETAILS
                 TITLE: {job["title"]}
                 COMPANY: {job["company"]}
                 DESCRIPTION: {job["description"]}
                 """
-    
-    response = client.chat(
-        model, 
-        messages = [
+
+    response = client.chat.completions.create(
+        model=model,
+        messages=[
             {"role": "system", "content": prompt},
             {"role": "user", "content": message}
         ],
-        stream = False,
-        options = {
+        stream=False,
+        options={
             "num_predict": -1,
             "temperature": 0
-        }, 
-        format = Score.model_json_schema()
-    ) 
+        },
+        response_format={"type": "json_object"}
+    )
 
-    return Score.model_validate_json(response.message.content).model_dump_json(indent=2)
-    # return _calculate_final_score(response_json)
-
-# def _calculate_final_score(score_dict):
-#     """
-#     Certain scores are more important than others.
-#     This function reweights the assessments made.
-#     """
-
-#     score_dict["skillset"]
-#     score_dict["academic"]
-#     score_dict["experience"]
-#     score_dict["professional"]
-#     score_dict["language"]
-#     score_dict["preference"]
-#     score_dict["overall"]
-    
-#     final = 
+    return Score.model_validate_json(response.choices[0].message.content).model_dump_json(indent=2)
 
 
 def summarize(job, cv, preferences, model, **kwargs):
-    
+
     ollama_host = os.getenv('OLLAMA_HOST', 'http://localhost:11434')
     client = ollama.Client(host=ollama_host)
     client.pull(model)
-    
-    prompt_summary = f"""    
+
+    prompt_summary = f"""
             Extract the information needed to answer the following questions:
 
             1. Skillset Match: What technical/soft skills are required by the job? What skills does the applicant have?
-            
-            2. Academic Requirements: What degree requirements, field of study, and grade thresholds are specified? Which does the applicant have? 
-            
+
+            2. Academic Requirements: What degree requirements, field of study, and grade thresholds are specified? Which does the applicant have?
+
             3. Experience Level: What seniority level does the job entail? What level does the applicant have?
-            
+
             4. Professional Experience: What industry/domain experience does the job require? Which experience does the applicant have?
-            
+
             5. Language Requirements: What language is the job posting in? Where is the job located? What languages are required by the job posting?
-            What languages does the applicant speak? 
-            
+            What languages does the applicant speak?
+
             6. Preference Alignment: Does the role, company, location, and work style match the applicant's stated preferences?
             """
-    chat_summary = f"""    
-            CV: 
+    chat_summary = f"""
+            CV:
             {cv}
-            
+
             PREFERENCE STATEMENT:
             {preferences}
-            
-            JOB: 
+
+            JOB:
             {job}
             """
-    
+
     summary = client.chat(
-        model = model, 
-        messages = [
+        model=model,
+        messages=[
             {"role": "system", "content": prompt_summary},
             {"role": "user", "content": chat_summary}
         ],
-        stream = False,
-        options = {
+        stream=False,
+        options={
             "temperature": 0
         }
     )
     return summary.message.content
 
-def score_on_summary(summary, model, **kwargs):     
+
+def score_on_summary(summary, model, **kwargs):
     ollama_host = os.getenv('OLLAMA_HOST', 'http://localhost:11434')
     client = ollama.Client(host=ollama_host)
     client.pull(model)
-    
+
     prompt_scoring = """
         Based on the provided summary, critically rate how well the candidate fits to job from.
-        Your rating scale is: 
+        Your rating scale is:
         0 = Critical mismatch, 25 = Poor match, 50 = Acceptable, 75 = Good match, 100 = Excellent match
         Make small adjustments of ±5-10 points if needed:
-        
+
         THE CRITERIA:
-            1. Skillset Match: Does the applicant possess the required technical/soft skills, 
+            1. Skillset Match: Does the applicant possess the required technical/soft skills,
             or could they acquire them quickly given their background?
-            
-            2. Academic Requirements: Are degree requirements, field of study, and grade 
+
+            2. Academic Requirements: Are degree requirements, field of study, and grade
             thresholds (if specified) met?
-            
-            3. Experience Level: Is the applicant appropriately qualified (not under or 
+
+            3. Experience Level: Is the applicant appropriately qualified (not under or
             over-qualified) for the seniority level?
-            
-            4. Professional Experience: Does the applicant have relevant industry/domain 
+
+            4. Professional Experience: Does the applicant have relevant industry/domain
             experience and comparable role experience?
-            
+
             5. Language Requirements: Does the applicant fulfill all language requirements? Can they read the job description?
-            
-            6. Preference Alignment: Does the role, company, location, and work style match 
+
+            6. Preference Alignment: Does the role, company, location, and work style match
             the applicant's stated preferences?
-            
-            7. Overall Assessment: Considering all factors, how successful and satisfied 
+
+            7. Overall Assessment: Considering all factors, how successful and satisfied
             would the applicant likely be in this role?
-        At the end include strength and concerns for each applicant, as well as a short summary. 
+        At the end include strength and concerns for each applicant, as well as a short summary.
     """
-    
+
     response = client.chat(
-        model = model, 
-        messages = [
+        model=model,
+        messages=[
             {"role": "assistant", "content": summary},
             {"role": "user", "content": prompt_scoring}
         ],
-        stream = False, 
-        options = {
+        stream=False,
+        options={
             "temperature": 0
         },
-        format = Score.model_json_schema()
+        format=Score.model_json_schema()
     )
-    
+
     return Score.model_validate_json(response.message.content).model_dump_json(indent=2)
 
 
 def score_with_summary(job, cv, preferences, model, **kwargs):
-    
+
     ollama_host = os.getenv('OLLAMA_HOST', 'http://localhost:11434')
     client = ollama.Client(host=ollama_host)
     client.pull(model)
-    
-    prompt ="""
+
+    prompt = """
             Your task is to rate how well job postings fit a provided CV and preference statement.
-            Your rating scale is: 
+            Your rating scale is:
             0 = Critical mismatch, 25 = Poor match, 50 = Acceptable, 75 = Good match, 100 = Excellent match
             Make small adjustments of ±5-10 points if needed.
             Provide a brief reasoning for each score.
 
-            1. Skillset Match: Does the applicant possess the required technical/soft skills, 
+            1. Skillset Match: Does the applicant possess the required technical/soft skills,
             or could they acquire them quickly given their background?
-            
-            2. Academic Requirements: Are degree requirements, field of study, and grade 
+
+            2. Academic Requirements: Are degree requirements, field of study, and grade
             thresholds (if specified) met?
-            
-            3. Experience Level: Is the applicant appropriately qualified (not under or 
+
+            3. Experience Level: Is the applicant appropriately qualified (not under or
             over-qualified) for the seniority level?
-            
-            4. Professional Experience: Does the applicant have relevant industry/domain 
+
+            4. Professional Experience: Does the applicant have relevant industry/domain
             experience and comparable role experience?
-            
+
             5. Language Requirements: What languages does the applicant speak? What languages are required by the job posting?
             Can they read the job description?
-            
-            6. Preference Alignment: Does the role, company, location, and work style match 
+
+            6. Preference Alignment: Does the role, company, location, and work style match
             the applicant's stated preferences?
-            
-            7. Overall Assessment: Considering all factors, how successful and satisfied 
+
+            7. Overall Assessment: Considering all factors, how successful and satisfied
             would the applicant likely be in this role?
             """
-    message = f"""                
-                # CV: 
+    message = f"""
+                # CV:
                 {cv}
-                
+
                 # PREFERENCES:
                 {preferences}
-                
+
                 # JOB DETAILS
                 TITLE: {job["title"]}
                 COMPANY: {job["company"]}
                 DESCRIPTION: {job["description"]}
                 """
-    
+
     response = client.chat(
-        model, 
-        messages = [
+        model,
+        messages=[
             {"role": "system", "content": prompt},
             {"role": "user", "content": message}
         ],
-        stream = False,
-        options = {
+        stream=False,
+        options={
             "num_predict": -1,
             "temperature": 0
-        }, 
-        format = Rating.model_json_schema()
-    ) 
+        },
+        format=Rating.model_json_schema()
+    )
 
     return Rating.model_validate_json(response.message.content).model_dump_json(indent=2)
 
 
-def score_separately(job, cv, preferences, model, **kargs): 
-    
+def score_separately(job, cv, preferences, model, **kwargs):
+
     ollama_host = os.getenv('OLLAMA_HOST', 'http://localhost:11434')
     client = ollama.Client(host=ollama_host)
     client.pull(model)
-        
-    prompt =f"""
+
+    prompt = f"""
             Your task is to rate how well job postings fit a provided CV and preference statement.
-            Your rating scale is: 
+            Your rating scale is:
             0 = Critical mismatch, 25 = Poor match, 50 = Acceptable, 75 = Good match, 100 = Excellent match
-            Make small adjustments of ±5-10 points if needed            
+            Make small adjustments of ±5-10 points if needed
             """
 
-    context = f"""  
-            CV: 
+    context = f"""
+            CV:
             {cv}
-                
+
             PREFERENCES:
             {preferences}
-                
+
             JOB DETAILS
             TITLE: {job["title"]}
             COMPANY: {job["company"]}
             DESCRIPTION: {job["description"]}
             """
-            
+
     questions = [
             "Skillset Match: Does the applicant possess the required technical/soft skills, \
             or could they acquire them quickly given their background?",
-            
+
             "Academic Requirements: Are degree requirements, field of study, and grade \
             thresholds (if specified) met?",
-            
+
             "Experience Level: Is the applicant appropriately qualified (not under or \
             over-qualified) for the seniority level?",
-            
+
             "Professional Experience: Does the applicant have relevant industry/domain \
             experience and comparable role experience?",
-            
+
             "Language Requirements: What languages does the applicant speak? What languages are required by the job posting?\
             Can they read the job description?",
-            
+
             "Preference Alignment: Does the role, company, location, and work style match \
             the applicant's stated preferences?",
-            
+
             "Overall Assessment: Considering all factors, how successful and satisfied \
             would the applicant likely be in this role?",
     ]
-    
+
     answers = []
-    for q in questions: 
+    for q in questions:
         response = client.chat(
-            model, 
-            messages = [
+            model,
+            messages=[
                 {"role": "system", "content": prompt},
                 {"role": "assistant", "content": context},
                 {"role": "user", "content": q}
             ],
-            stream = False,
-            options = {
+            stream=False,
+            options={
                 "num_predict": -1,
                 "temperature": 0
-            }, 
-        ) 
+            },
+        )
         answers.append(response.message.content)
-    
+
     return "\n".join(answers)
-                    
-if __name__ == "__main__": 
-    
+
+
+if __name__ == "__main__":
+
     model_llama_3b_q4 = "llama3.2:3b-instruct-q4_K_M"
     model_llama_3b_q5 = "llama3.2:3b-instruct-q5_K_M"
     model_llama_3b_q6 = "llama3.2:3b-instruct-q6_K"
@@ -363,16 +354,18 @@ if __name__ == "__main__":
     model_mistral_nemo_q2 = "mistral-nemo:12b-instruct-2407-q2_K"
     model_gemma = "gemma3:4b"
     model_deep_seek = "deepseek-r1:7b-qwen-distill-q4_K_M"
+    model_llama_cpp = "llama-3.2-3b-instruct"  # For llama-cpp-python
+
     models = [
-            #model_llama_3b_q4,model_llama_3b_q5,model_llama_3b_q6,
+            # model_llama_3b_q4,model_llama_3b_q5,model_llama_3b_q6,
             # model_qwen_1_7b_q4,model_qwen_4b_q4,
             model_qwen_8b_q4,
             model_mistral_7b_q4,model_mistral_7b_q5,model_mistral_nemo_q4,
             model_mistral_nemo_q2,
-            model_gemma, 
+            model_gemma,
             model_deep_seek
     ]
-    
+
     model_name_map = {
         model_llama_3b_q4: "llama_q4_K_M",
         model_llama_3b_q5: "llama_q5_K_M",
@@ -385,9 +378,10 @@ if __name__ == "__main__":
         model_mistral_nemo_q2: "mistral_nemo_q2_K",
         model_mistral_nemo_q4: "mistral_nemo_q4_K_M",
         model_deep_seek: "deep_seek_q4_K_M",
-        model_gemma : "gemma3:4b",
+        model_gemma: "gemma3:4b",
+        model_llama_cpp: "llama_cpp",
     }
-    
+
     job1 = {
         "title": "AI Consultant (all genders)",
         "company": "Lufthansa Industry Solutions",
@@ -1088,7 +1082,7 @@ if __name__ == "__main__":
         job_no_acad["title"]: "job_no_acad",
         job_no_pref["title"]: "job_no_pref"
     }
-    
+
     cv = """
             David Gasser CURRICULUM VITAE
             E-Mail davidgasser12@gmail.com LinkedIn linkedin.com/in/d-gasser
@@ -1099,7 +1093,7 @@ if __name__ == "__main__":
             Mar 2025 – Sep 2025 AI Researcher - Japan National Institute of Informatics - Internship
             - Researched AI for time series prediction. Fine-tuned, evaluated, and deployed foundation models.
             - Developed and evaluated novel transformer-based architectures for structured financial data.
-            - Coauthored paper on transformer-based time series forecasting; basis for Master’s thesis.
+            - Coauthored paper on transformer-based time series forecasting; basis for Master's thesis.
             Aug 2024 – Nov 2024 IT Strategist - Munich Re AG - Internship
             - Conducted and managed tech trend research, culminating in an externally published report.
             - Tracked and supported internal as well as external IT product compliance.
@@ -1143,48 +1137,13 @@ if __name__ == "__main__":
 """
     preferences = """
                 I am looking for competetive and somewhat challenging jobs in the AI sphere. My favorite position would be as an AI engineer,
-                or something related to it. I am most interested in AI, ML and would love a job that deals with these topics on a daily level. 
-                The team and working environment matters a lot to me. I want to have the opportunity for growth and mentorship. Those are two 
-                very important things for me. I prefer working on something new or multi-faceted, then pure implementation. It should not be 
-                the same thing over and over. When it comes to the type of company, I am open for both larger companies and start ups, as long 
+                or something related to it. I am most interested in AI, ML and would love a job that deals with these topics on a daily level.
+                The team and working environment matters a lot to me. I want to have the opportunity for growth and mentorship. Those are two
+                very important things for me. I prefer working on something new or multi-faceted, then pure implementation. It should not be
+                the same thing over and over. When it comes to the type of company, I am open for both larger companies and start ups, as long
                 as they provide a good working athmosphere, great pay, and good benefits.
                 """
-    
-    output_folder_scoring = Path("output/scoring")     
-    output_folder_summarize = Path("output/summarize")      
-    output_folder_score_on_summary = Path("output/score_on_summary")
-    output_folder_sum_with_score = Path("output/score_with_summary")
-    output_folder_separate = Path("output/separate_scoring")
-    output_folders = [output_folder_scoring, output_folder_summarize, output_folder_score_on_summary, 
-                      output_folder_sum_with_score, output_folder_separate]
-    
-    ## Selection
-    for model in models: 
-        for job in jobs: 
-            summary = None
-            ## testing
-            def test_functions(function, output_path): 
-                start_time = time.time()
-                response = function(**{"job":job, "cv":cv, "preferences":preferences, "model":model, "summary":summary})
-                print(response)
-                print("-"*60)
-                print(f"Response time Score Job: {(time.time()-start_time):.3f}")
-                print("-"*60)
-                
-                with open(output_path, "w") as f: 
-                    if type(response) == Score or type(response) == Rating:
-                        f.write(f"Response time: {(time.time()-start_time):.3f}\n\n{response}")
-                    else: 
-                        f.write(f"Response time: {(time.time()-start_time):.3f}\n\n{response}")
-                return response
-            
-            
-            model_folder = model_name_map[model]
-            [os.makedirs(out_folder / model_folder, exist_ok=True) for out_folder in output_folders]
-            output_file = f"{model_folder}/{job_to_string_map[job['title']]}.txt"
-            
-            test_functions(score_job, output_folder_scoring / output_file)
-            summary = test_functions(summarize, output_folder_summarize / output_file)
-            test_functions(score_on_summary, output_folder_score_on_summary / output_file)
-            test_functions(score_with_summary, output_folder_sum_with_score / output_file)
-            test_functions(score_separately, output_folder_separate / output_file)
+
+    # Test with llama-cpp-python
+    result = score_job(job1, cv, preferences, model_llama_cpp)
+    print(result)
