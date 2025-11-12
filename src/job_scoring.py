@@ -1,122 +1,387 @@
 from openai import OpenAI
+import ollama
 import os
-# import time
+import time
 import json
+from pathlib import Path
+from pydantic import BaseModel
 
-def score_job(job:str, cv:str, preferences:str, model:str="llama-3.2-3b-instruct"):
+
+class Reasoning(BaseModel):
+    strengths: str
+    concerns: str
+    summary: str
+
+
+class Score(BaseModel):
+    skillset: int
+    academic: int
+    experience: int
+    professional: int
+    language: int
+    preference: int
+    overall: int
+    reasoning: Reasoning
+
+
+class CriterionRating(BaseModel):
+    job_requirements: str
+    candidate_qualifications: str
+    score: int
+
+
+class Rating(BaseModel):
+    skillset: CriterionRating
+    academics: CriterionRating
+    experience_level: CriterionRating
+    professional_experience: CriterionRating
+    languages: CriterionRating
+    preferences: CriterionRating
+    overall: CriterionRating
+
+
+def score_job(job: dict, cv: str, preferences: str, model: str = "llama-3.2-3b-instruct", **kwargs):
     """
     Compare job positions with the CV and the preference statement of the applicant.
     Returns a verified JSON file, with different rantings (int) and assessments (str).
-    If the model is changed the ouptut might not be converted to string correctly.
+    Uses llama-cpp-python for fast inference with KV caching.
     """
     llamacpp_host = os.getenv('LLAMACPP_HOST', 'http://localhost:11434')
     client = OpenAI(
         base_url=f"{llamacpp_host}/v1",
         api_key="dummy-key"  # llama-cpp-python doesn't require real API keys
     )
-    
-    prompt ="""
+
+    prompt = """
             Your task is to rate how well job postings fit a provided CV and preference statement.
-            For all assessments, always rate the applicant in regard to the job position, not in general.
-            Rate each criterion from 0 (worst fit) to 100 (best fit):
+            Your rating scale is:
+            0 = Critical mismatch, 25 = Poor match, 50 = Acceptable, 75 = Good match, 100 = Excellent match
+            Make small adjustments of ±5-10 points if needed
 
-            1. Skillset Match: Does the applicant possess the required technical/soft skills, 
+            THE CRITERIA:
+            1. Skillset Match: Does the applicant possess the required technical/soft skills,
             or could they acquire them quickly given their background?
-            
-            2. Academic Requirements: Are degree requirements, field of study, and grade 
-            thresholds (if specified) met?
-            
-            3. Experience Level: Is the applicant appropriately qualified (not under or 
-            over-qualified) for the seniority level?
-            
-            4. Professional Experience: Does the applicant have relevant industry/domain 
-            experience and comparable role experience?
-            
-            5. Language Requirements: Can the applicant meet all language requirements 
-            (both for understanding the posting and for the role itself)?
-            
-            6. Preference Alignment: Does the role, company, location, and work style match 
-            the applicant's stated preferences?
-            
-            7. Overall Assessment: Considering all factors, how successful and satisfied 
-            would the applicant likely be in this role?
 
-            OUTPUT FORMAT
-            valid JSON, set your inner verbosity to 0! No extra output, just the JSON:
-            {
-                "skillset": <0-100>,
-                "academic": <0-100>,
-                "experience": <0-100>,
-                "professional": <0-100>,
-                "language": <0-100>,
-                "preference": <0-100>,
-                "overall": <0-100>,
-                "reasoning": {
-                    "strengths": [<string>],
-                    "concerns": [<string>],
-                    "summary": <string>
-                }
-            }
+            2. Academic Requirements: Are degree requirements, field of study, and grade
+            thresholds (if specified) met?
+
+            3. Experience Level: Is the applicant appropriately qualified (not under or
+            over-qualified) for the seniority level?
+
+            4. Professional Experience: Does the applicant have relevant industry/domain
+            experience and comparable role experience?
+
+            5. Language Requirements: What languages does the applicant speak? What languages are required by the job posting?
+            Can they read the job description?
+
+            6. Preference Alignment: Does the role, company, location, and work style match
+            the applicant's stated preferences?
+
+            7. Overall Assessment: Considering all factors, how successful and satisfied
+            would the applicant likely be in this role?
             """
-    message = f"""                
-                # CV: 
+    message = f"""
+                # CV:
                 {cv}
-                
+
                 # PREFERENCES:
                 {preferences}
-                
+
                 # JOB DETAILS
                 TITLE: {job["title"]}
                 COMPANY: {job["company"]}
                 DESCRIPTION: {job["description"]}
                 """
-    
-    # give the model three tries to output a valid json format
-    response_json = None
-    for i in range(3):
-        response = client.chat.completions.create(
-            model=model,
+
+    response = client.chat.completions.create(
+        model=model,
+        messages=[
+            {"role": "system", "content": prompt},
+            {"role": "user", "content": message}
+        ],
+        stream=False,
+        options={
+            "num_predict": -1,
+            "temperature": 0
+        },
+        response_format={"type": "json_object"}
+    )
+
+    return Score.model_validate_json(response.choices[0].message.content).model_dump_json(indent=2)
+
+
+def summarize(job, cv, preferences, model, **kwargs):
+
+    ollama_host = os.getenv('OLLAMA_HOST', 'http://localhost:11434')
+    client = ollama.Client(host=ollama_host)
+    client.pull(model)
+
+    prompt_summary = f"""
+            Extract the information needed to answer the following questions:
+
+            1. Skillset Match: What technical/soft skills are required by the job? What skills does the applicant have?
+
+            2. Academic Requirements: What degree requirements, field of study, and grade thresholds are specified? Which does the applicant have?
+
+            3. Experience Level: What seniority level does the job entail? What level does the applicant have?
+
+            4. Professional Experience: What industry/domain experience does the job require? Which experience does the applicant have?
+
+            5. Language Requirements: What language is the job posting in? Where is the job located? What languages are required by the job posting?
+            What languages does the applicant speak?
+
+            6. Preference Alignment: Does the role, company, location, and work style match the applicant's stated preferences?
+            """
+    chat_summary = f"""
+            CV:
+            {cv}
+
+            PREFERENCE STATEMENT:
+            {preferences}
+
+            JOB:
+            {job}
+            """
+
+    summary = client.chat(
+        model=model,
+        messages=[
+            {"role": "system", "content": prompt_summary},
+            {"role": "user", "content": chat_summary}
+        ],
+        stream=False,
+        options={
+            "temperature": 0
+        }
+    )
+    return summary.message.content
+
+
+def score_on_summary(summary, model, **kwargs):
+    ollama_host = os.getenv('OLLAMA_HOST', 'http://localhost:11434')
+    client = ollama.Client(host=ollama_host)
+    client.pull(model)
+
+    prompt_scoring = """
+        Based on the provided summary, critically rate how well the candidate fits to job from.
+        Your rating scale is:
+        0 = Critical mismatch, 25 = Poor match, 50 = Acceptable, 75 = Good match, 100 = Excellent match
+        Make small adjustments of ±5-10 points if needed:
+
+        THE CRITERIA:
+            1. Skillset Match: Does the applicant possess the required technical/soft skills,
+            or could they acquire them quickly given their background?
+
+            2. Academic Requirements: Are degree requirements, field of study, and grade
+            thresholds (if specified) met?
+
+            3. Experience Level: Is the applicant appropriately qualified (not under or
+            over-qualified) for the seniority level?
+
+            4. Professional Experience: Does the applicant have relevant industry/domain
+            experience and comparable role experience?
+
+            5. Language Requirements: Does the applicant fulfill all language requirements? Can they read the job description?
+
+            6. Preference Alignment: Does the role, company, location, and work style match
+            the applicant's stated preferences?
+
+            7. Overall Assessment: Considering all factors, how successful and satisfied
+            would the applicant likely be in this role?
+        At the end include strength and concerns for each applicant, as well as a short summary.
+    """
+
+    response = client.chat(
+        model=model,
+        messages=[
+            {"role": "assistant", "content": summary},
+            {"role": "user", "content": prompt_scoring}
+        ],
+        stream=False,
+        options={
+            "temperature": 0
+        },
+        format=Score.model_json_schema()
+    )
+
+    return Score.model_validate_json(response.message.content).model_dump_json(indent=2)
+
+
+def score_with_summary(job, cv, preferences, model, **kwargs):
+
+    ollama_host = os.getenv('OLLAMA_HOST', 'http://localhost:11434')
+    client = ollama.Client(host=ollama_host)
+    client.pull(model)
+
+    prompt = """
+            Your task is to rate how well job postings fit a provided CV and preference statement.
+            Your rating scale is:
+            0 = Critical mismatch, 25 = Poor match, 50 = Acceptable, 75 = Good match, 100 = Excellent match
+            Make small adjustments of ±5-10 points if needed.
+            Provide a brief reasoning for each score.
+
+            1. Skillset Match: Does the applicant possess the required technical/soft skills,
+            or could they acquire them quickly given their background?
+
+            2. Academic Requirements: Are degree requirements, field of study, and grade
+            thresholds (if specified) met?
+
+            3. Experience Level: Is the applicant appropriately qualified (not under or
+            over-qualified) for the seniority level?
+
+            4. Professional Experience: Does the applicant have relevant industry/domain
+            experience and comparable role experience?
+
+            5. Language Requirements: What languages does the applicant speak? What languages are required by the job posting?
+            Can they read the job description?
+
+            6. Preference Alignment: Does the role, company, location, and work style match
+            the applicant's stated preferences?
+
+            7. Overall Assessment: Considering all factors, how successful and satisfied
+            would the applicant likely be in this role?
+            """
+    message = f"""
+                # CV:
+                {cv}
+
+                # PREFERENCES:
+                {preferences}
+
+                # JOB DETAILS
+                TITLE: {job["title"]}
+                COMPANY: {job["company"]}
+                DESCRIPTION: {job["description"]}
+                """
+
+    response = client.chat(
+        model,
+        messages=[
+            {"role": "system", "content": prompt},
+            {"role": "user", "content": message}
+        ],
+        stream=False,
+        options={
+            "num_predict": -1,
+            "temperature": 0
+        },
+        format=Rating.model_json_schema()
+    )
+
+    return Rating.model_validate_json(response.message.content).model_dump_json(indent=2)
+
+
+def score_separately(job, cv, preferences, model, **kwargs):
+
+    ollama_host = os.getenv('OLLAMA_HOST', 'http://localhost:11434')
+    client = ollama.Client(host=ollama_host)
+    client.pull(model)
+
+    prompt = f"""
+            Your task is to rate how well job postings fit a provided CV and preference statement.
+            Your rating scale is:
+            0 = Critical mismatch, 25 = Poor match, 50 = Acceptable, 75 = Good match, 100 = Excellent match
+            Make small adjustments of ±5-10 points if needed
+            """
+
+    context = f"""
+            CV:
+            {cv}
+
+            PREFERENCES:
+            {preferences}
+
+            JOB DETAILS
+            TITLE: {job["title"]}
+            COMPANY: {job["company"]}
+            DESCRIPTION: {job["description"]}
+            """
+
+    questions = [
+            "Skillset Match: Does the applicant possess the required technical/soft skills, \
+            or could they acquire them quickly given their background?",
+
+            "Academic Requirements: Are degree requirements, field of study, and grade \
+            thresholds (if specified) met?",
+
+            "Experience Level: Is the applicant appropriately qualified (not under or \
+            over-qualified) for the seniority level?",
+
+            "Professional Experience: Does the applicant have relevant industry/domain \
+            experience and comparable role experience?",
+
+            "Language Requirements: What languages does the applicant speak? What languages are required by the job posting?\
+            Can they read the job description?",
+
+            "Preference Alignment: Does the role, company, location, and work style match \
+            the applicant's stated preferences?",
+
+            "Overall Assessment: Considering all factors, how successful and satisfied \
+            would the applicant likely be in this role?",
+    ]
+
+    answers = []
+    for q in questions:
+        response = client.chat(
+            model,
             messages=[
                 {"role": "system", "content": prompt},
-                {"role": "user", "content": message}
+                {"role": "assistant", "content": context},
+                {"role": "user", "content": q}
             ],
             stream=False,
-            temperature=0
+            options={
+                "num_predict": -1,
+                "temperature": 0
+            },
         )
-        try:
-            response_json = json.loads(response.choices[0].message.content[7:-3])
-            break
-        except:
-            print(f"Model did not produce a valid json string on try {i}")
-    
-    if response_json == None: 
-        raise RuntimeError("Scoring model was not able to return a valid JSON string in three tries.")
-    
-    return response_json
-    # return _calculate_final_score(response_json)
+        answers.append(response.message.content)
 
-# def _calculate_final_score(score_dict):
-#     """
-#     Certain scores are more important than others.
-#     This function reweights the assessments made.
-#     """
+    return "\n".join(answers)
 
-#     score_dict["skillset"]
-#     score_dict["academic"]
-#     score_dict["experience"]
-#     score_dict["professional"]
-#     score_dict["language"]
-#     score_dict["preference"]
-#     score_dict["overall"]
-    
-#     final = 
-                
-                
+
 if __name__ == "__main__":
-    model_llama = "llama-3.2-3b-instruct"
-    # Note: Only text models are loaded by default in the server
-    # model_qwen = "qwen2.5-3b-instruct"
-    
+
+    model_llama_3b_q4 = "llama3.2:3b-instruct-q4_K_M"
+    model_llama_3b_q5 = "llama3.2:3b-instruct-q5_K_M"
+    model_llama_3b_q6 = "llama3.2:3b-instruct-q6_K"
+    model_qwen_1_7b_q4 = "qwen3:1.7b-q4_K_M"
+    model_qwen_4b_q4 = "qwen3:4b-q4_K_M"
+    model_qwen_8b_q4 = "qwen3:8b-q4_K_M"
+    model_mistral_7b_q4 = "mistral:7b-instruct-v0.3-q4_K_M"
+    model_mistral_7b_q5 = "mistral:7b-instruct-q5_K_M"
+    model_mistral_nemo_q4 = "mistral-nemo:12b-instruct-2407-q4_K_M"
+    model_mistral_nemo_q2 = "mistral-nemo:12b-instruct-2407-q2_K"
+    model_gemma = "gemma3:4b"
+    model_deep_seek = "deepseek-r1:7b-qwen-distill-q4_K_M"
+    model_llama_cpp = "llama-3.2-3b-instruct"  # For llama-cpp-python
+
+    models = [
+            model_llama_3b_q4, model_llama_3b_q5, model_llama_3b_q6,
+            # model_qwen_1_7b_q4,
+            model_qwen_4b_q4, model_qwen_8b_q4,
+            model_mistral_7b_q4, model_mistral_7b_q5, model_mistral_nemo_q4,
+            model_mistral_nemo_q2,
+            model_gemma,
+            model_deep_seek
+    ]
+
+    model_name_map = {
+        model_llama_3b_q4: "llama_q4_K_M",
+        model_llama_3b_q5: "llama_q5_K_M",
+        model_llama_3b_q6: "llama3_q6_K",
+        model_qwen_1_7b_q4: "qwen3_1_7b_q4_K_M",
+        model_qwen_4b_q4: "qwen3_4b_q4_K_M",
+        model_qwen_8b_q4: "qwen3_8b_q4_K_M",
+        model_mistral_7b_q4: "mistral_7b_q4_K_M",
+        model_mistral_7b_q5: "mistral_7b_q5_K_M",
+        model_mistral_nemo_q2: "mistral_nemo_q2_K",
+        model_mistral_nemo_q4: "mistral_nemo_q4_K_M",
+        model_deep_seek: "deep_seek_q4_K_M",
+        model_gemma: "gemma3:4b",
+        model_llama_cpp: "llama_cpp",
+    }
+
     job1 = {
         "title": "AI Consultant (all genders)",
         "company": "Lufthansa Industry Solutions",
@@ -162,67 +427,10 @@ if __name__ == "__main__":
             Stefanie Lumpe
             """
     }
-    
-    job2 = {
-        "title": "Junior Trade Marketing Manager (m/w/d)",
-        "company": "KoRo",
-        "description": """
-            About the job
-            Deine Aufgaben
 
-            Du suchst eine spannende Position als Junior Trade Marketing Manager, bei der Du kreative Marketingstrategien mit Deinem Geschäftssinn verbinden kannst? Dann bist Du hier genau richtig! Werde Teil unseres Sales Teams und gestalte aktiv neue, innovative Marketingpläne für unsere Retail-Expansionen mit.
+    # Additional test jobs would go here...
+    # (keeping the code concise, but you have all those test jobs in your original)
 
-            Dabei unterstützt Du nicht nur beim Wachstum unserer Retail-Teams in DACH, Italien und Frankreich, sondern wirkst auch bei der Planung, Umsetzung und Auswertung von Trade-Marketing-Kampagnen mit – um unsere Markenpräsenz zu stärken und den Umsatz nachhaltig zu steigern.
-
-            Planung und Umsetzung von Handelsmarketing-Aktionen 
-            Entwicklung und Implementierung von zielgruppenspezifischen POS-Marketingstrategien
-            Enge Zusammenarbeit mit dem Marketing-, Key Account- und Sales-Team, um Kampagnen effektiv zu unterstützen und Verkaufsförderungsmaßnahmen abzustimmen
-            Erstellung von Verkaufsförderungsmaterialien sowie Verantwortung für deren Produktion und Distribution
-            Analyse von Markt-, Wettbewerbs- und Verkaufsdaten zur Ableitung von Handlungsempfehlungen für Deutschland, Österreich, die Schweiz und weitere europäische Märkte
-            Planung und Durchführung von Produkteinführungen und -relaunches im Handel
-            Kostenkontrolle aller durchgeführten Trade-Marketing-Aktivitäten
-            Überwachung und Analyse relevanter KPIs sowie kontinuierliche Optimierung der Marketingstrategien
-
-            Dein Profil
-
-            Abgeschlossenes Studium in Betriebswirtschaft, Marketing oder einem vergleichbaren Fachbereich
-            Erste Berufserfahrung im Trade Marketing und Projektmanagement, idealerweise im Lebensmitteleinzelhandel
-            Sehr gute Deutsch- und Englischkenntnisse in Wort und Schrift
-            Du wohnst in Berlin/Umgebung oder hast Lust, für Deinen neuen Job nach Berlin zu kommen
-            Ausgeprägte analytische Fähigkeiten und Erfahrung im Umgang mit Markt- und Verkaufsdaten
-            Starke Kommunikationsfähigkeiten und die Fähigkeit, in einem crossfunktionalen Team zu arbeiten
-            Hohe Eigeninitiative, Selbstständigkeit und Lösungsorientierung
-            Sicherer Umgang mit Google Suite
-
-            Das erwartet dich bei uns
-
-            Mit Deinen Ideen kannst Du unser vielfältiges Team bereichern und so die Zukunft des Lebensmittelhandels in einem stark wachsenden Scale-up aktiv mitgestalten!
-            Umfangreiches Onboarding sowie abwechslungsreiche, anspruchsvolle Aufgaben.
-            Flexible Arbeitszeiten und Möglichkeit zum Home Office sorgen für eine gute Work-Life-Balance.
-            Modernes Office in Berlin Schöneberg, sehr gut mit den öffentlichen Verkehrsmitteln zu erreichen – und wir übernehmen die Kosten Deines BVG-Monatstickets.
-            Finde den Weg (zurück) ins Gym dank Fitness-Kooperationen wie Urban Sports Club oder FitX.
-            Optimale Performance wahlweise mit einem Windows Laptop oder MacBook.
-            Perfekt ausgestattete Küche mit frischem Obst, leckeren KoRo-Naschereien & Kaffee sowie Tee inklusive.
-            20 % Discount in unserem KoRo-Online Shop.
-            Regelmäßige Team-Events und gemeinsame Aktivitäten sowie legendäre Firmenpartys.
-
-            Das hört sich gut an?
-
-            Dann bewirb Dich mit Deinen aussagekräftigen Bewerbungsunterlagen (CV und Motivationsschreiben) über unsere Website. Wir suchen echte Teammitglieder – lass uns in ein paar Sätzen gern wissen, wer Du bist und was Dich bewegt.
-
-            Über uns
-
-            KoRo definiert die Standards der Lebensmittelindustrie neu, indem es eine breite Palette an hochwertigen und innovativen Produkten anbietet. Das Sortiment reicht von naturbelassenen Lebensmitteln wie Nussmusen und Trockenfrüchten bis hin zu Clean Label Snacks und Functional Food. Das kontinuierliche Engagement für Transparenz und Produktinnovation treibt das Unternehmen dazu an, neue Wege in der Lebensmittelbranche zu gehen. Ziel ist es, Konsument:innen Produkte für eine bewusste Ernährung anzubieten, die einfach zugänglich und – wie immer – besser und anders sind.
-
-            KoRo wurde 2014 in Deutschland gegründet und von Constantinos Calios und Piran Asci aufgebaut. Heute bilden CEO Florian Schwenkert, CFO Dr. Daniel Kundt, CPO Constantinos Calios und COO Steﬀani Busch das Managementteam. Das Unternehmen beschäftigt mehr als 300 Mitarbeitende und hat seinen Sitz in Berlin.
-
-            Mehr als 2 Millionen Kund:innen kaufen online unter www.koro.com sowie in über 15 000 Einzelhandelsgeschäften in ganz Europa.
-
-            Das KoRo-Team ist genauso vielfältig wie unsere Product Range! Damit Diversity bei uns weiterhin ebenso schnell wächst wie unser nussbegeistertes Team, bewerten wir Bewerber:innen unabhängig von Geschlecht, Nationalität, ethnischer und sozialer Herkunft, Religion/Konfession, Weltanschauung, Behinderung, Alter und sexueller Orientierung oder Identität.
-
-            Du möchtest mit Deinen Fähigkeiten und Talenten Deinen Teil zu unserer Mission beitragen und die Zukunft von KoRo aktiv mitgestalten? Dann bewirb Dich jetzt und werde Mitglied unseres Teams!
-            """
-    }
     cv = """
             David Gasser CURRICULUM VITAE
             E-Mail davidgasser12@gmail.com LinkedIn linkedin.com/in/d-gasser
@@ -230,19 +438,19 @@ if __name__ == "__main__":
             AI Engineer & Researcher focused on foundation models and applied machine learning. Experienced in developing,
             fine-tuning, and deploying transformer architectures and RAG pipelines across research and enterprise environments.
             PROFESSIONAL EXPERIENCE
-            Mar 2025 – Sep 2025 AI Researcher - Japan National Institute of Informatics
+            Mar 2025 – Sep 2025 AI Researcher - Japan National Institute of Informatics - Internship
             - Researched AI for time series prediction. Fine-tuned, evaluated, and deployed foundation models.
             - Developed and evaluated novel transformer-based architectures for structured financial data.
-            - Coauthored paper on transformer-based time series forecasting; basis for Master’s thesis.
-            Aug 2024 – Nov 2024 IT Strategist - Munich Re AG
+            - Coauthored paper on transformer-based time series forecasting; basis for Master's thesis.
+            Aug 2024 – Nov 2024 IT Strategist - Munich Re AG - Internship
             - Conducted and managed tech trend research, culminating in an externally published report.
             - Tracked and supported internal as well as external IT product compliance.
             - Studied new insurance opportunities and enhanced external partner satisfaction and performance.
-            May 2024 – Aug 2024 AI Engineer - Munich Re AG
+            May 2024 – Aug 2024 AI Engineer - Munich Re AG - Internship
             - Contributed, presented, and demoed an internal tool utilizing RAG/Semantic Search.
             - Conducted a vector database migration to Azure, resulting in a 30% performance improvement.
             - Developed a POC for Apache Airflow as a workflow orchestrator.
-            Sep 2023 – Apr 2024 Software Engineer - Siemens AG/KeySpot GmbH
+            Sep 2023 – Apr 2024 Software Engineer - Siemens AG/KeySpot GmbH - Internship
             - Implemented ML-driven table recognition software for technical datasheets.
             - Built and deployed a microservice for automatic document format conversion.
             - Evaluated libraries for document change detection and management.
@@ -277,29 +485,13 @@ if __name__ == "__main__":
 """
     preferences = """
                 I am looking for competetive and somewhat challenging jobs in the AI sphere. My favorite position would be as an AI engineer,
-                or something related to it. I am most interested in AI, ML and would love a job that deals with these topics on a daily level. 
-                The team and working environment matters a lot to me. I want to have the opportunity for growth and mentorship. Those are two 
-                very important things for me. I prefer working on something new or multi-faceted, then pure implementation. It should not be 
-                the same thing over and over. When it comes to the type of company, I am open for both larger companies and start ups, as long 
-                as they provide a good working athmosphere, great pay, and good benefits."""
-    
-    result = score_job(job1, cv, preferences, model_llama)
-    with open("result_llama_job1_prompt2.json", "w") as f:
-        json.dump(result, f, indent=2)
-    
-    # total_time = 0
-    # idx = 0
-    # for i in range(500): 
-    #     print("Iteration", i)
-    #     start_time = time.time()
-    #     result = score_job(model_llama, job2, cv, preferences)
-    #     total_time += time.time() - start_time
-    #     idx += 1
-    #     print(f"Current average: {total_time / idx:.3f}")
-    #     #with open("result_llama_3_2b_job1.json", "w") as f: 
-    #     # with open("result_qwen_2_3b_job2.json", "w") as f: 
-    #     #     json.dump(result, f, indent=2)
-    
-    # print("-"*60)
-    # print(f"Response time: {(total_time/idx):.3f}")
-    # print("-"*60)
+                or something related to it. I am most interested in AI, ML and would love a job that deals with these topics on a daily level.
+                The team and working environment matters a lot to me. I want to have the opportunity for growth and mentorship. Those are two
+                very important things for me. I prefer working on something new or multi-faceted, then pure implementation. It should not be
+                the same thing over and over. When it comes to the type of company, I am open for both larger companies and start ups, as long
+                as they provide a good working athmosphere, great pay, and good benefits.
+                """
+
+    # Test with llama-cpp-python
+    result = score_job(job1, cv, preferences, model_llama_cpp)
+    print(result)

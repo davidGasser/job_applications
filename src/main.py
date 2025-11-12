@@ -6,10 +6,8 @@ if os.environ.get('ENABLE_DEBUGPY', '0') == '1':
     import debugpy
     debugpy.listen(("0.0.0.0", 5678))
     print("⏳ Debugger listening on port 5678...")
-    print("   Set breakpoints in VS Code, then attach via 'Python: Remote Attach' (F5)")
     # Uncomment to make app wait for debugger before continuing:
     # debugpy.wait_for_client()
-    print("✅ Ready for debugger attachment")
     print("✅ Ready for debugger attachment")
 
 from flask import Flask, redirect, url_for

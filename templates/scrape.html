@@ -380,7 +380,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const company = msg.company;
         const location = msg.location;
         const score = msg.score;
-        log.textContent += `Saved ${jobTitle} @ ${company} in ${location} with score ${score*100}%\n`;
+        log.textContent += `Saved ${jobTitle} @ ${company} in ${location} with score ${score}\n`;
         log.scrollTop = log.scrollHeight;
     });
 
