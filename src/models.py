@@ -38,6 +38,9 @@ class Job(db.Model):
     matching_score = db.Column(db.Float, nullable=False, default=0.0) # 0-100 percentage score (overall score)
     score_details = db.Column(db.Text, nullable=True) # JSON string with full scoring breakdown
     notes = db.Column(db.Text, nullable=True)
+    interview_step = db.Column(db.Integer, nullable=True) # 1, 2, 3... for Interviewing status
+    interview_stage_name = db.Column(db.String(100), nullable=True) # "Phone Screen", "Technical", etc.
+    interview_chain = db.Column(db.Text, nullable=True) # JSON array of interview stages with details
     search_criteria_id = db.Column(db.Integer, db.ForeignKey('search_criteria.id'), nullable=True)
     search_criteria = db.relationship('SearchCriteria', backref=db.backref('jobs', lazy=True))
     dates = db.relationship('JobDate', backref='job', lazy=True, cascade="all, delete-orphan")

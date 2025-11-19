@@ -122,12 +122,14 @@
         background-color: var(--primary-color);
         border-color: var(--primary-color);
         border-radius: 6px;
-        padding: 0.25rem 0.5rem;
+        padding: 0.5rem 0.5rem;
         font-size: 0.85rem;
         font-weight: 500;
         cursor: pointer;
         transition: all 0.2s;
         margin-bottom: 2px;
+        min-height: 3.5rem;
+        line-height: 1.3;
     }
 
     .fc .fc-event:hover {
@@ -173,12 +175,18 @@
         background-color: #7c3aed;
     }
 
+    .fc .fc-event-time {
+        font-weight: 600;
+        display: block;
+        margin-bottom: 0.15rem;
+        font-size: 0.8rem;
+    }
+
     .fc .fc-event-title {
         font-weight: 500;
         white-space: pre-line !important;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        line-height: 1.2;
+        overflow: visible;
+        line-height: 1.3;
     }
 
     .fc .fc-daygrid-event-dot {
@@ -310,6 +318,11 @@ document.addEventListener('DOMContentLoaded', function() {
             right: 'dayGridMonth,dayGridWeek,dayGridDay'
         },
         events: '/job_dates',
+        eventTimeFormat: {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+        },
         eventDidMount: function(info) {
             // Add category class for color coding
             const category = info.event.extendedProps.category;

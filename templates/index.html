@@ -646,8 +646,59 @@
         font-size: 0.9rem;
         line-height: 1.7;
         color: var(--text-color);
-        white-space: pre-wrap;
         word-wrap: break-word;
+    }
+
+    /* Markdown styling */
+    .job-description-box h1,
+    .job-description-box h2,
+    .job-description-box h3,
+    .job-description-box h4 {
+        margin-top: 1.5em;
+        margin-bottom: 0.5em;
+        font-weight: 600;
+        line-height: 1.3;
+    }
+
+    .job-description-box h2 {
+        font-size: 1.3rem;
+        border-bottom: 1px solid var(--border-color);
+        padding-bottom: 0.3em;
+    }
+
+    .job-description-box h3 {
+        font-size: 1.1rem;
+    }
+
+    .job-description-box p {
+        margin: 0.8em 0;
+    }
+
+    .job-description-box ul,
+    .job-description-box ol {
+        margin: 0.8em 0;
+        padding-left: 2em;
+    }
+
+    .job-description-box li {
+        margin: 0.4em 0;
+    }
+
+    .job-description-box strong {
+        font-weight: 600;
+        color: var(--text-color);
+    }
+
+    .job-description-box em {
+        font-style: italic;
+    }
+
+    .job-description-box code {
+        background-color: #f3f4f6;
+        padding: 0.2em 0.4em;
+        border-radius: 3px;
+        font-family: monospace;
+        font-size: 0.85em;
     }
 
     .info-section {
@@ -1002,6 +1053,20 @@
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', () => {
+    // Configure marked for safe HTML rendering
+    marked.setOptions({
+        breaks: true,
+        gfm: true,
+        headerIds: false,
+        mangle: false
+    });
+
+    // Helper function to safely render markdown
+    function renderMarkdown(text) {
+        if (!text || text === 'No description available') return text;
+        return marked.parse(text);
+    }
+
     const modal = document.getElementById('job-details-modal');
     let currentJobId = null;
     let currentScrapeId = null;
@@ -1479,7 +1544,9 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('modal-job-location').textContent = job.location || 'N/A';
         document.getElementById('modal-job-score').textContent = `${job.matching_score}%`;
         document.getElementById('modal-apply-button').href = job.application_link;
-        document.getElementById('modal-job-description').textContent = job.description || 'No description available';
+        // Render description as markdown
+        const descriptionHtml = renderMarkdown(job.description || 'No description available');
+        document.getElementById('modal-job-description').innerHTML = descriptionHtml;
 
         // Format and display timestamps
         const scrapedDate = new Date(job.scraped_at);

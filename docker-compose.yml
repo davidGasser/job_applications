@@ -1,101 +1,102 @@
 services:
-  # db:
-  #   image: postgres:16-alpine
-  #   restart: always
-  #   environment:
-  #     - POSTGRES_USER=user
-  #     - POSTGRES_PASSWORD=password
-  #     - POSTGRES_DB=jobs
-  #   volumes:
-  #     - postgres_data:/var/lib/postgresql/data/
-  #   ports:
-  #     - '5433:5432'
+  db:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=jobs
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    ports:
+      - '5433:5432'
+  app:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - '5000:5000'
+      - '5678:5678'
+    volumes:
+      - .:/app
+    depends_on:
+      - db
+      - selenium
+      # - llamacpp
+      # - ollama
+    environment:
+      - TZ=Europe/Berlin
+      - DATABASE_URL=postgresql://user:password@db:5432/jobs
+      - FLASK_APP=src/main.py
+      - FLASK_DEBUG=1
+      - ENABLE_DEBUGPY=1
+      - LLAMACPP_HOST=http://llamacpp:11434
+      - OLLAMA_HOST=http://ollama:11430
+    command: python -Xfrozen_modules=off src/main.py
 
-  # app:
+  selenium:
+    image: selenium/standalone-chrome:latest
+    shm_size: 2g
+    restart: always
+    ports:
+      - '4444:4444'
+
+  # dev:
   #   build: .
-  #   restart: always
-  #   ports:
-  #     - '5000:5000'
-  #     - '5678:5678'
+  #   container_name: dev
   #   volumes:
   #     - .:/app
+  #   ports:
+  #     - "5678:5678"
+  #   working_dir: /app
+  #   stdin_open: true
+  #   tty: true
+  #   command: /bin/bash
   #   depends_on:
-  #     - db
-  #     - selenium
   #     - llamacpp
   #     - ollama
   #   environment:
-  #     - TZ=Europe/Berlin
-  #     - DATABASE_URL=postgresql://user:password@db:5432/jobs
-  #     - FLASK_APP=src/main.py
-  #     - FLASK_DEBUG=1
-  #     - ENABLE_DEBUGPY=1
   #     - LLAMACPP_HOST=http://llamacpp:11434
   #     - OLLAMA_HOST=http://ollama:11430
-  #   command: python -Xfrozen_modules=off src/main.py
 
-  # selenium:
-  #   image: selenium/standalone-chrome:latest
-  #   shm_size: 2g
-  #   restart: always
+  # llamacpp:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile.llamacpp
+  #   container_name: llamacpp
+  #   volumes:
+  #     - llamacpp_models:/models
   #   ports:
-  #     - '4444:4444'
+  #     - 11434:11434
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - driver: nvidia
+  #             count: all
+  #             capabilities: [gpu]
 
-  dev:
-    build: .
-    container_name: dev
-    volumes:
-      - .:/app
-    ports:
-      - "5678:5678"
-    working_dir: /app
-    stdin_open: true
-    tty: true
-    command: /bin/bash
-    depends_on:
-      - llamacpp
-      - ollama
-    environment:
-      - LLAMACPP_HOST=http://llamacpp:11434
-      - OLLAMA_HOST=http://ollama:11430
-
-  llamacpp:
-    build:
-      context: .
-      dockerfile: Dockerfile.llamacpp
-    container_name: llamacpp
-    volumes:
-      - llamacpp_models:/models
-    ports:
-      - 11434:11434
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
-
-  ollama:
-    image: ollama/ollama:latest
-    container_name: ollama
-    volumes:
-      - ollama:/root/.ollama
-    ports:
-      - 11430:11434
-    environment:
-      - OLLAMA_KEEP_ALIVE=24h
-      - OLLAMA_FLASH_ATTENTION=true
-      - OLLAMA_KV_CACHE-TYPE=q8_0
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
+  # ollama:
+  #   image: ollama/ollama:latest
+  #   container_name: ollama
+  #   volumes:
+  #     - ollama:/root/.ollama
+  #   ports:
+  #     - 11430:11434
+  #   environment:
+  #     - OLLAMA_KEEP_ALIVE=24h
+  #     - OLLAMA_FLASH_ATTENTION=true
+  #     - OLLAMA_KV_CACHE-TYPE=q8_0
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - driver: nvidia
+  #             count: all
+  #             capabilities: [gpu]
 
 volumes:
-  # postgres_data:
-  llamacpp_models:
-  ollama:
+  postgres_data:
+  # llamacpp_models:
+  # ollama:
