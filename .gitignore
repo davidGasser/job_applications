@@ -6,3 +6,4 @@
 /output
 /output_llama_cpp
 */__pycache__*
+.env

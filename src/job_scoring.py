@@ -1,44 +1,48 @@
 from openai import OpenAI
+from google import genai
+from google.genai import types 
+    
 import ollama
 import os
 import time
 import json
 from pathlib import Path
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import uuid
 import requests
 
-class Reasoning(BaseModel):
-    strengths: str
-    concerns: str
-    summary: str
+# class Reasoning(BaseModel):
+#     strengths: str
+#     concerns: str
+#     summary: str
 
 
 class Score(BaseModel):
-    skillset: int
-    academic: int
-    experience: int
-    professional: int
-    language: int
-    preference: int
-    overall: int
-    reasoning: Reasoning
+    skillset: int = Field(..., ge=0, le=10, description="Scoring the skillset match from 0 to 10.")
+    academic: int = Field(..., ge=0, le=10, description="Scoring the academic match from 0 to 10.")
+    experience: int = Field(..., ge=0, le=10, description="Scoring the experience match from 0 to 10.")
+    professional: int = Field(..., ge=0, le=10, description="Scoring the professional match from 0 to 10.")
+    language: int = Field(..., ge=0, le=10, description="Scoring the language match from 0 to 10.")
+    preference: int = Field(..., ge=0, le=10, description="Scoring the preference match from 0 to 10.")
+    summary: str = Field(
+        ..., description="Once short summary sentence of the rating."
+    )
 
 
-class CriterionRating(BaseModel):
-    job_requirements: str
-    candidate_qualifications: str
-    score: int
+# class CriterionRating(BaseModel):
+#     job_requirements: str
+#     candidate_qualifications: str
+#     score: int
 
 
-class Rating(BaseModel):
-    skillset: CriterionRating
-    academics: CriterionRating
-    experience_level: CriterionRating
-    professional_experience: CriterionRating
-    languages: CriterionRating
-    preferences: CriterionRating
-    overall: CriterionRating
+# class Rating(BaseModel):
+#     skillset: CriterionRating
+#     academics: CriterionRating
+#     experience_level: CriterionRating
+#     professional_experience: CriterionRating
+#     languages: CriterionRating
+#     preferences: CriterionRating
+#     overall: CriterionRating
 
 
 def score_job(job:dict, cv:str, preferences:str, model:str, **kwargs):
@@ -364,6 +368,56 @@ def score_separately(job, cv, preferences, model, **kwargs):
         }
     )
     return response.json()["choices"][0]["message"]["content"]
+
+def score_with_summary_gemini(job, cv, preferences, no_pref, **kwargs):
+    
+    client = genai.Client(api_key=os.environ.get("API_KEY_GEMINI"))
+
+    
+    prompt ="""
+            You are an expert HR analyst and resume screening AI. Your task is to compare a candidate's application against 
+            one or more job descriptions and provide a structured analysis in JSON format.
+            ---------------------
+            Analyze the provided Job posting and the candidate profile on the following:
+            1. Skillset Match: Does the applicant possess the required technical/soft skills, 
+            or could they acquire them quickly given their background?
+            2. Academic Requirements: Are degree requirements, field of study, and grade 
+            thresholds (if specified) met?
+            3. Experience Level: Is the applicant appropriately qualified (not under or 
+            over-qualified) for the seniority level?
+            4. Professional Experience: Does the applicant have relevant industry/domain 
+            experience and comparable role experience?
+            5. Language Requirements: What languages does the applicant speak? What languages are required by the job posting?
+            Can they read the job description?
+            """
+    message = f"""                
+                # CV: 
+                {cv}
+                
+                # PREFERENCES:
+                {preferences}
+                
+                # NO PREFERENCES: 
+                {no_pref}
+                
+                # JOB DETAILS
+                TITLE: {job["title"]}
+                COMPANY: {job["company"]}
+                DESCRIPTION: {job["description"]}
+                """
+    
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents= message,
+        config = types.GenerateContentConfig(
+            system_instruction = prompt,
+            temperature = 0.0, 
+            responseMimeType = "application/json",
+            responseSchema = Score.model_json_schema(),
+        )
+    )
+
+    return Score.model_validate_json(response.text).model_dump_json(indent=2)
 
 
 if __name__ == "__main__":
