@@ -16,3 +16,4 @@ gevent-websocket
 debugpy
 APScheduler
 requests
+google-genai

@@ -1,4 +1,5 @@
 import logging
+import os
 from models import db, SearchCriteria, Job, UserProfile
 from scrapers import LinkedInScraper
 from queue import Queue
@@ -7,7 +8,8 @@ import threading
 from sqlalchemy.exc import IntegrityError
 import json
 
-from job_scoring import score_job
+from job_scoring import score_with_summary_gemini
+from google import genai
 
 
 # Setup component-specific loggers
@@ -51,12 +53,18 @@ def register_socketio_events(socketio, app):
                 if user_profile:
                     cv_text = user_profile.cv_text or ""
                     preferences = user_profile.job_preferences or ""
+                    no_preferences = user_profile.no_preferences or ""
                 else:
                     cv_text = ""
                     preferences = ""
+                    no_preferences = ""
 
                 if not cv_text or not preferences:
                     queue_logger.warning("No user profile found. Jobs will be assigned default score of 80.")
+
+            # Create Gemini client ONCE per worker for efficient connection reuse
+            # This significantly improves performance for parallel processing
+            gemini_client = genai.Client(api_key=os.getenv("API_KEY_GEMINI"))
 
             while True:
                 job_data = queue.get()  # Blocks here waiting for a job
@@ -104,8 +112,11 @@ def register_socketio_events(socketio, app):
                                 }
                                 matching_score = 80.0
                             else:
-                                # Score using the LLM
-                                score_dict = score_job(job_data, cv_text, preferences)
+                                # Score using the LLM (reuse the same client for efficiency)
+                                score_dict = score_with_summary_gemini(
+                                    job_data, cv_text, preferences, no_preferences,
+                                    client=gemini_client
+                                )
                                 matching_score = float(score_dict.get("overall", 0))
 
                             # Store the overall score and full details

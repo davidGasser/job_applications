@@ -1,7 +1,8 @@
 from openai import OpenAI
 from google import genai
 from google.genai import types 
-    
+from math import exp
+
 import ollama
 import os
 import time
@@ -269,10 +270,10 @@ def score_with_summary(job, cv, preferences, model, **kwargs):
             "num_predict": -1,
             "temperature": 0
         },
-        format=Rating.model_json_schema()
+        format=Score.model_json_schema()
     )
 
-    return Rating.model_validate_json(response.message.content).model_dump_json(indent=2)
+    return Score.model_validate_json(response.message.content).model_dump_json(indent=2)
 
 
 def score_separately(job, cv, preferences, model, **kwargs):
@@ -369,23 +370,38 @@ def score_separately(job, cv, preferences, model, **kwargs):
     )
     return response.json()["choices"][0]["message"]["content"]
 
-def score_with_summary_gemini(job, cv, preferences, no_pref, **kwargs):
-    
-    client = genai.Client(api_key=os.environ.get("API_KEY_GEMINI"))
+def score_with_summary_gemini(job, cv, preferences, no_pref, client=None, **kwargs):
+    """
+    Score a job against CV and preferences using Gemini API.
 
-    
+    Args:
+        job: Job data dictionary
+        cv: Candidate's CV text
+        preferences: What the candidate wants
+        no_pref: What the candidate wants to avoid
+        client: Optional pre-initialized genai.Client (recommended for reuse)
+
+    Returns:
+        Dictionary with scoring results
+    """
+    # Create client if not provided (for backwards compatibility)
+    # But reusing a client is much more efficient for parallel processing
+    if client is None:
+        client = genai.Client(api_key=os.environ.get("API_KEY_GEMINI"))
+
+
     prompt ="""
-            You are an expert HR analyst and resume screening AI. Your task is to compare a candidate's application against 
+            You are an expert HR analyst and resume screening AI. Your task is to compare a candidate's application against
             one or more job descriptions and provide a structured analysis in JSON format.
             ---------------------
             Analyze the provided Job posting and the candidate profile on the following:
-            1. Skillset Match: Does the applicant possess the required technical/soft skills, 
+            1. Skillset Match: Does the applicant possess the required technical/soft skills,
             or could they acquire them quickly given their background?
-            2. Academic Requirements: Are degree requirements, field of study, and grade 
+            2. Academic Requirements: Are degree requirements, field of study, and grade
             thresholds (if specified) met?
-            3. Experience Level: Is the applicant appropriately qualified (not under or 
+            3. Experience Level: Is the applicant appropriately qualified (not under or
             over-qualified) for the seniority level?
-            4. Professional Experience: Does the applicant have relevant industry/domain 
+            4. Professional Experience: Does the applicant have relevant industry/domain
             experience and comparable role experience?
             5. Language Requirements: What languages does the applicant speak? What languages are required by the job posting?
             Can they read the job description?
@@ -417,8 +433,31 @@ def score_with_summary_gemini(job, cv, preferences, no_pref, **kwargs):
         )
     )
 
-    return Score.model_validate_json(response.text).model_dump_json(indent=2)
+    score_dict = Score.model_validate_json(response.text).model_dump()
+    return calculate_final_score(score_dict)
+    
+    # return Score.model_validate_json(response.text).model_dump_json(indent=2)
 
+def calculate_final_score(score_dict:dict): 
+    
+    summary = score_dict.pop("summary") if score_dict.get("summary") else None 
+    flag_smaller = False
+    # if the scoring is lower or equal to 5 it represents a mismatch that will be
+    # disqualifying in most cases
+    # punish lower scores more severely 
+    # shifted sigmoid function with a small scaling to punish smaller scores
+    for crit in score_dict: 
+        if score_dict[crit] <= 5: 
+            flag_smaller = True
+        score_dict[crit] = 1/(1+exp(-score_dict[crit]/0.95+7))
+    
+    if flag_smaller: 
+        score_dict["overall"] = 0
+    else: 
+        score_dict["overall"] = sum(score_dict.values()) / len(score_dict)
+    
+    if summary: score_dict["summary"] = summary
+    return score_dict
 
 if __name__ == "__main__":
 

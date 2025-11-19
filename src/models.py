@@ -69,8 +69,28 @@ class UserProfile(db.Model):
     cv_text = db.Column(db.Text, nullable=True)
     cv_filename = db.Column(db.String(255), nullable=True)
     job_preferences = db.Column(db.Text, nullable=True)
+    no_preferences = db.Column(db.Text, nullable=True)  # Things the user wants to avoid
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     def __repr__(self):
         return f'<UserProfile {self.id}>'
+
+class UserJobInteraction(db.Model):
+    """Track user interactions with jobs for training data collection."""
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user_profile.id'), nullable=False)
+    job_id = db.Column(db.Integer, db.ForeignKey('job.id'), nullable=False)
+    interaction_type = db.Column(db.String(50), nullable=False)  # 'shortlist', 'status_change', 'un-shortlist'
+    old_value = db.Column(db.String(50), nullable=True)  # For status changes: old status
+    new_value = db.Column(db.String(50), nullable=True)  # For status changes: new status, for shortlist: 'true'/'false'
+    matching_score = db.Column(db.Float, nullable=True)  # Job's score at time of interaction
+    score_details = db.Column(db.Text, nullable=True)  # Full score breakdown (JSON) at time of interaction
+    timestamp = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    # Relationships
+    user = db.relationship('UserProfile', backref=db.backref('interactions', lazy=True))
+    job = db.relationship('Job', backref=db.backref('interactions', lazy=True))
+
+    def __repr__(self):
+        return f'<UserJobInteraction user={self.user_id} job={self.job_id} type={self.interaction_type}>'

@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify, request, render_template
-from models import db, Job, SearchCriteria, Contact
+from models import db, Job, SearchCriteria, Contact, UserProfile, UserJobInteraction
 from datetime import datetime
 import random
 
@@ -11,13 +11,6 @@ jobs_bp = Blueprint('jobs', __name__)
 
 @jobs_bp.route('/jobs')
 def index():
-    # Get all jobs and assign random scores if not set
-    jobs = Job.query.all()
-    for job in jobs:
-        if job.matching_score == 0.0:
-            job.matching_score = round(random.uniform(60, 100), 1)
-    db.session.commit()
-
     # Get search runs (not templates) with job counts
     search_criterias = SearchCriteria.query.filter_by(is_template=False).all()
     scrapes = []
@@ -118,17 +111,36 @@ def delete_job(job_id):
 def update_job_status(job_id):
     try:
         job = Job.query.get_or_404(job_id)
+        old_status = job.status
         new_status = request.json.get('status')
+
         if new_status:
             job.status = new_status
+
+            # Track the status change for training data
+            user_profile = UserProfile.query.first()
+            if user_profile:
+                interaction = UserJobInteraction(
+                    user_id=user_profile.id,
+                    job_id=job_id,
+                    interaction_type='status_change',
+                    old_value=old_status,
+                    new_value=new_status,
+                    matching_score=job.matching_score,
+                    score_details=job.score_details
+                )
+                db.session.add(interaction)
+
             # Clear interview fields if moving out of Interviewing status
             if new_status != 'Interviewing':
                 job.interview_step = None
                 job.interview_stage_name = None
+
             db.session.commit()
             return jsonify({'status': 'success', 'new_status': new_status})
         return jsonify({'status': 'error', 'message': 'No status provided'}), 400
     except Exception as e:
+        db.session.rollback()
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 @jobs_bp.route('/job/<int:job_id>/interview_step', methods=['POST'])
@@ -157,15 +169,31 @@ def toggle_shortlist(job_id):
     try:
         job = Job.query.get_or_404(job_id)
         job.shortlisted = not job.shortlisted
+
+        # Track the interaction for training data
+        user_profile = UserProfile.query.first()
+        if user_profile:
+            interaction = UserJobInteraction(
+                user_id=user_profile.id,
+                job_id=job_id,
+                interaction_type='shortlist' if job.shortlisted else 'un-shortlist',
+                new_value='true' if job.shortlisted else 'false',
+                matching_score=job.matching_score,
+                score_details=job.score_details
+            )
+            db.session.add(interaction)
+
         # If shortlisting for the first time, set status to Interested
         if job.shortlisted and job.status == 'New':
             job.status = 'Interested'
         # If un-shortlisting, reset to New
         elif not job.shortlisted:
             job.status = 'New'
+
         db.session.commit()
         return jsonify({'status': 'success', 'shortlisted': job.shortlisted, 'job_status': job.status})
     except Exception as e:
+        db.session.rollback()
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 @jobs_bp.route('/job/<int:job_id>/details', methods=['GET'])

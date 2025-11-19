@@ -37,6 +37,7 @@ def get_profile():
             'cv_text': profile.cv_text,
             'cv_filename': profile.cv_filename,
             'job_preferences': profile.job_preferences,
+            'no_preferences': profile.no_preferences,
             'updated_at': profile.updated_at.isoformat()
         })
     except Exception as e:
@@ -57,6 +58,8 @@ def update_profile():
             profile.cv_filename = data['cv_filename']
         if 'job_preferences' in data:
             profile.job_preferences = data['job_preferences']
+        if 'no_preferences' in data:
+            profile.no_preferences = data['no_preferences']
 
         db.session.commit()
         return jsonify({

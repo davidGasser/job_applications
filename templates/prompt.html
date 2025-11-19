@@ -266,6 +266,20 @@
         </div>
     </div>
 
+    <!-- No Preferences Section -->
+    <div class="preferences-section">
+        <h2>What You Want to Avoid</h2>
+        <p style="margin-top: 0; margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.9rem;">
+            List things you don't want in a job (e.g., no on-call duties, no travel, avoid certain industries)
+        </p>
+        <div class="form-group">
+            <textarea
+                id="no-preferences"
+                placeholder="Example: No positions requiring more than 25% travel. Avoid roles focused purely on implementation without design input. Not interested in fintech or defense industries. No on-call rotations or 24/7 support responsibilities..."
+            ></textarea>
+        </div>
+    </div>
+
     <!-- Action Buttons -->
     <div class="action-buttons">
         <div class="save-status" id="save-status"></div>
@@ -285,6 +299,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const pdfPlaceholder = document.getElementById('pdf-placeholder');
     const editableCvText = document.getElementById('editable-cv-text');
     const jobPreferences = document.getElementById('job-preferences');
+    const noPreferences = document.getElementById('no-preferences');
     const saveButton = document.getElementById('save-button');
     const saveStatus = document.getElementById('save-status');
 
@@ -318,6 +333,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (data.job_preferences) {
                     jobPreferences.value = data.job_preferences;
+                }
+
+                if (data.no_preferences) {
+                    noPreferences.value = data.no_preferences;
                 }
             })
             .catch(error => {
@@ -385,7 +404,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
                 body: JSON.stringify({
                     cv_text: editableCvText.value,
-                    job_preferences: jobPreferences.value
+                    job_preferences: jobPreferences.value,
+                    no_preferences: noPreferences.value
                 })
             });
 
@@ -423,6 +443,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     editableCvText.addEventListener('input', debouncedSave);
     jobPreferences.addEventListener('input', debouncedSave);
+    noPreferences.addEventListener('input', debouncedSave);
 });
 </script>
 {% endblock %}
