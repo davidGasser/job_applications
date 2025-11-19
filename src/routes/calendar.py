@@ -22,14 +22,17 @@ def get_job_dates():
         dates = JobDate.query.all()
         events = []
         for d in dates:
+            # Include interview type/appointment title in calendar event
+            event_type = d.title if d.title else d.category.title()
             events.append({
-                'title': f"{d.job.title}\n{d.job.company}",
+                'title': f"{event_type}\n{d.job.title} - {d.job.company}",
                 'start': d.date.isoformat(),
                 'extendedProps': {
                     'job_id': d.job_id,
                     'job_title': d.job.title,
                     'company': d.job.company,
                     'category': d.category,
+                    'event_type': event_type,
                     'description': d.description
                 }
             })

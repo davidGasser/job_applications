@@ -141,6 +141,7 @@ class LinkedInScraper:
             json.dump(self.driver.get_cookies(), f)
         logger.info(f"Cookies saved to {filename}")
     
+    
     def _login_manual(self, filename='linkedin_cookies.json'):
         """Prompt manual login and save cookies."""
         self.driver.get('https://www.linkedin.com/login')
@@ -156,6 +157,118 @@ class LinkedInScraper:
             logger.error("Login timeout exceeded (180s)")
             raise TimeoutError("Login timeout exceeded (180s)")
     
+    def _get_application_link(self) -> str:
+        """Extract application link from job posting."""
+        try: 
+            if self.driver.find_element(By.XPATH, "//button[contains(@aria-label,'Easy Apply to')][1]"): 
+                time.sleep(0.5)
+                return self.driver.current_url
+        except: 
+            pass 
+        
+        try:
+            apply_button = self.driver.find_element(By.XPATH, "//button[contains(@id,'jobs-apply-button-id')][1]")
+            apply_button.click()
+            time.sleep(0.4)
+            
+            self.driver.switch_to.window(self.driver.window_handles[1])
+            link = self.driver.current_url
+            self.driver.close()
+            self.driver.switch_to.window(self.driver.window_handles[0])
+            return link
+        except:
+            return "Not Available"
+        
+        
+    def extract_info(self):                    
+
+        page_soup = BeautifulSoup(self.driver.page_source, 'html.parser')
+
+        company_div = page_soup.find('div', class_=re.compile(r'company-name'))
+        company_link = company_div.find('a') if company_div else None
+        company_text = company_link.get_text(strip=True) if company_link else "Not Available"
+
+        try:
+            location_elem = self.driver.find_element(By.XPATH, "//span[contains(@dir, 'ltr')]/span[contains(@class,'tvm__text')][1]")
+            location_text = location_elem.text
+        except:
+            location_text = "Not Available"
+
+        title_elem = page_soup.find('h1', class_=re.compile(r't-24'))
+        job_title = title_elem.get_text(strip=True) if title_elem else "Not Available"
+
+        def _clean_description(element):
+            if isinstance(element, NavigableString):
+                return str(element).strip()
+
+            if not element.name:
+                return ""
+
+            text_output = []
+
+            # Handle headings with markdown
+            if element.name in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']:
+                level = int(element.name[1])
+                heading_text = element.get_text(strip=True)
+                return f"\n\n{'#' * level} {heading_text}\n"
+
+            # Handle paragraphs
+            if element.name == 'p':
+                inner_text = ''.join(_clean_description(child) for child in element.contents)
+                return f"\n{inner_text.strip()}\n"
+
+            # Handle line breaks
+            if element.name == 'br':
+                return "\n"
+
+            # Handle list items
+            if element.name == 'li':
+                item_text = element.get_text(strip=True)
+                return f"\n- {item_text}"
+
+            # Handle unordered lists
+            if element.name == 'ul':
+                items = ''.join(_clean_description(child) for child in element.contents)
+                return f"{items}\n"
+
+            # Handle ordered lists
+            if element.name == 'ol':
+                items_text = []
+                for idx, child in enumerate(element.find_all('li', recursive=False), 1):
+                    items_text.append(f"\n{idx}. {child.get_text(strip=True)}")
+                return ''.join(items_text) + "\n"
+
+            # Handle bold/strong with markdown
+            if element.name in ['strong', 'b']:
+                inner_text = element.get_text(strip=True)
+                return f" **{inner_text}** "
+
+            # Handle italic/emphasis with markdown
+            if element.name in ['em', 'i']:
+                inner_text = element.get_text(strip=True)
+                return f" *{inner_text}* "
+
+            # Recursively process children for other elements
+            for child in element.contents:
+                text_output.append(_clean_description(child))
+
+            return ''.join(filter(None, text_output))
+                        
+        desc_elem = page_soup.find('div', class_=re.compile(r'jobs-description-content__text'))
+        description = "\n".join([_clean_description(main_el) for main_el in desc_elem]).strip() if desc_elem else "Not Available"
+        app_link = self._get_application_link()
+                
+        data = {
+            'title': job_title,
+            'company': company_text,
+            'location': location_text,
+            'description': description,
+            'application_link': app_link
+        }
+        
+        return data
+            
+            
     def _scrape_page(self, jobs_data: Union[Queue,List[dict]], location: str, page_num: int):
         """Extract job listings from current page."""
         
@@ -183,107 +296,49 @@ class LinkedInScraper:
             if self.stop_callback():
                 logger.info("Scraping stopped by user request")
                 return
-
+            
+            # Close warning dialogs
             try:
-                # Close warning dialogs
-                try:
-                    if self.driver.find_element(By.XPATH, "//div[contains(@class, 'job-trust-pre-apply')]"):
-                        close_button = self.driver.find_element(By.XPATH, "//button[1]")
-                        close_button.click()
-                except:
-                    pass
-                
-                if idx != 1: 
-                    WebDriverWait(self.driver, 5).until(
-                        lambda driver: driver.find_element(By.CSS_SELECTOR, 'h1.t-24').text == old_title
-                    )
-                    item.click()
-                    time.sleep(0.1)
-                    item.click()
-                    WebDriverWait(self.driver, 5).until(
-                        lambda driver: driver.find_element(By.CSS_SELECTOR, 'h1.t-24').text != old_title
-                    )
-                    
-
-                page_soup = BeautifulSoup(self.driver.page_source, 'html.parser')
-
-                company_div = page_soup.find('div', class_=re.compile(r'company-name'))
-                company_link = company_div.find('a') if company_div else None
-                company_text = company_link.get_text(strip=True) if company_link else "Not Available"
-
-                try:
-                    location_elem = self.driver.find_element(By.XPATH, "//span[contains(@dir, 'ltr')]/span[contains(@class,'tvm__text')][1]")
-                    location_text = location_elem.text
-                except:
-                    location_text = "Not Available"
-
-                title_elem = page_soup.find('h1', class_=re.compile(r't-24'))
-                job_title = title_elem.get_text(strip=True) if title_elem else "Not Available"
-
-                def _clean_description(element):
-                    text_output = []
-                    
-                    if isinstance(element, NavigableString): return element
-                    # Iterate over the children of the current element
-                    for child in element.contents:
-                        if isinstance(child, NavigableString):
-                            text_output.append(child.strip())
-                        elif child.name:
-                            if child.name == 'li':
-                                text_output.append(f"\n• {child.get_text(strip=True)}")
-                            else:
-                                text_output.append(_clean_description(child))
-                    return " ".join(filter(None, text_output)).strip()
-                        
-                desc_elem = page_soup.find('div', class_=re.compile(r'jobs-description-content__text'))
-                description = "\n".join([_clean_description(main_el) for main_el in desc_elem]).strip() if desc_elem else "Not Available"
-                app_link = self._get_application_link()
-                
-                # we id jobs through their application links. If they are not found we cannot use it
-                if app_link is None: continue
-                
-                data = {
-                        'title': job_title,
-                        'company': company_text,
-                        'location': location_text,
-                        'description': description,
-                        'application_link': app_link
-                }
-                if is_list:
-                    jobs_data.append(data)
-                else:
-                    # Putting into queue
-                    jobs_data.put(data)
-                    logger.info(f"[{location}] Job {idx}/{len(items)}: {job_title} @ {company_text} (queue size: ~{jobs_data.qsize()})")
-
-                self.total_jobs_scraped += 1
-                old_title = job_title
-                
+                if self.driver.find_element(By.XPATH, "//div[contains(@class, 'job-trust-pre-apply')]"):
+                    close_button = self.driver.find_element(By.XPATH, "//button[1]")
+                    close_button.click()
+            except:
+                pass
+            
+            # skip first job as it is already loaded and there is no old title
+            # introduced this block to have better loading behavior and make sure that changes occured
+            # also leads to better error handling
+            if idx != 1: 
+                WebDriverWait(self.driver, 5).until(
+                    lambda driver: driver.find_element(By.CSS_SELECTOR, 'h1.t-24').text == old_title
+                )
+                item.click()
+                time.sleep(0.1)
+                item.click()
+                WebDriverWait(self.driver, 5).until(
+                    lambda driver: driver.find_element(By.CSS_SELECTOR, 'h1.t-24').text != old_title
+                )
+            
+            # extract info
+            try: 
+                data = self.extract_info()
             except Exception as e:
                 logger.warning(f"[{location}] Failed to scrape job {idx}/{len(items)}: {e}")
                 continue
-    
-    def _get_application_link(self) -> str:
-        """Extract application link from job posting."""
-        try: 
-            if self.driver.find_element(By.XPATH, "//button[contains(@aria-label,'Easy Apply to')][1]"): 
-                time.sleep(0.5)
-                return self.driver.current_url
-        except: 
-            pass 
-        
-        try:
-            apply_button = self.driver.find_element(By.XPATH, "//button[contains(@id,'jobs-apply-button-id')][1]")
-            apply_button.click()
-            time.sleep(0.4)
+                
+            # we id jobs through their application links. If they are not found we cannot use it
+            if data["application_link"] is None: continue
             
-            self.driver.switch_to.window(self.driver.window_handles[1])
-            link = self.driver.current_url
-            self.driver.close()
-            self.driver.switch_to.window(self.driver.window_handles[0])
-            return link
-        except:
-            return "Not Available"
+            if is_list:
+                jobs_data.append(data)
+            else:
+                # Putting into queue
+                jobs_data.put(data)
+                logger.info(f"[{location}] Job {idx}/{len(items)}: {data['title']} @ {data['company']} (queue size: ~{jobs_data.qsize()})")
+
+            self.total_jobs_scraped += 1
+            old_title = data["title"]   
+            
     
     def scrape_jobs(self, queue:Queue=None) -> Union[None,pd.DataFrame]:
         """Scrape jobs across all specified locations and pages. If a queue is given all results are directly 
@@ -297,6 +352,7 @@ class LinkedInScraper:
         opts.add_experimental_option('excludeSwitches', ['enable-automation'])
         opts.add_experimental_option('useAutomationExtension', False)
         opts.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
+        opts.add_argument("--start-maximized")  
         self.driver = webdriver.Remote(
             command_executor='http://selenium:4444/wd/hub',
             options=opts
@@ -363,7 +419,10 @@ class LinkedInScraper:
         finally:
             self.driver.quit()
             logger.info("Browser closed")
-            
+    
+#-------------------------
+## scraping without login 
+#-------------------------       
 # class LinkedInScraper:
 #     """Scrape LinkedIn job listings with flexible filtering."""
     

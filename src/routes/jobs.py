@@ -121,9 +121,34 @@ def update_job_status(job_id):
         new_status = request.json.get('status')
         if new_status:
             job.status = new_status
+            # Clear interview fields if moving out of Interviewing status
+            if new_status != 'Interviewing':
+                job.interview_step = None
+                job.interview_stage_name = None
             db.session.commit()
             return jsonify({'status': 'success', 'new_status': new_status})
         return jsonify({'status': 'error', 'message': 'No status provided'}), 400
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@jobs_bp.route('/job/<int:job_id>/interview_step', methods=['POST'])
+def update_interview_step(job_id):
+    try:
+        job = Job.query.get_or_404(job_id)
+        interview_step = request.json.get('interview_step')
+        interview_stage_name = request.json.get('interview_stage_name')
+
+        if interview_step is not None:
+            job.interview_step = int(interview_step)
+        if interview_stage_name is not None:
+            job.interview_stage_name = interview_stage_name
+
+        db.session.commit()
+        return jsonify({
+            'status': 'success',
+            'interview_step': job.interview_step,
+            'interview_stage_name': job.interview_stage_name
+        })
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
@@ -173,6 +198,9 @@ def get_job_details(job_id):
             'status': job.status,
             'shortlisted': job.shortlisted,
             'notes': job.notes,
+            'interview_step': job.interview_step,
+            'interview_stage_name': job.interview_stage_name,
+            'interview_chain': job.interview_chain,
             'dates': dates,
             'contacts': contacts,
             'scraped_at': job.scraped_at.isoformat(),
@@ -192,6 +220,68 @@ def update_job_details(job_id):
         return jsonify({'status': 'success', 'message': 'Details updated'})
     except Exception as e:
         print(f"Error updating job details: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@jobs_bp.route('/job/<int:job_id>/interview_chain', methods=['POST'])
+def update_interview_chain(job_id):
+    try:
+        job = Job.query.get_or_404(job_id)
+        data = request.json
+        if 'interview_chain' in data:
+            job.interview_chain = data['interview_chain']
+        if 'interview_stage_name' in data:
+            job.interview_stage_name = data['interview_stage_name']
+        db.session.commit()
+        return jsonify({'status': 'success', 'message': 'Interview chain updated'})
+    except Exception as e:
+        print(f"Error updating interview chain: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@jobs_bp.route('/job/<int:job_id>/interview_date', methods=['POST'])
+def add_interview_date(job_id):
+    try:
+        from models import JobDate
+        from datetime import datetime
+
+        job = Job.query.get_or_404(job_id)
+        data = request.json
+
+        # Parse the datetime-local format
+        date_str = data.get('date')
+        if not date_str:
+            return jsonify({'status': 'error', 'message': 'No date provided'}), 400
+
+        # Convert from datetime-local format to datetime object
+        interview_date = datetime.fromisoformat(date_str)
+
+        # Check if a date already exists for this interview step
+        step = data.get('step')
+        existing_date = None
+        if step:
+            for job_date in job.dates:
+                if job_date.category == 'interview' and job_date.title.startswith(data.get('title', '').split(' with')[0]):
+                    existing_date = job_date
+                    break
+
+        if existing_date:
+            # Update existing date
+            existing_date.date = interview_date
+            existing_date.title = data.get('title', 'Interview')
+        else:
+            # Create new date
+            new_date = JobDate(
+                job_id=job_id,
+                date=interview_date,
+                category='interview',
+                title=data.get('title', 'Interview'),
+                description=f"Interview step {step}" if step else None
+            )
+            db.session.add(new_date)
+
+        db.session.commit()
+        return jsonify({'status': 'success', 'message': 'Interview date synced to calendar'})
+    except Exception as e:
+        print(f"Error adding interview date: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 @jobs_bp.route('/scrape/<scrape_id>/jobs')
