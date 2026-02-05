@@ -119,15 +119,64 @@ class NumCandidateAssessment(BaseModel):
     
     @property
     def average_score(self) -> float:
-        """Calculate average numeric score across all dimensions."""
+        """Calculate average numeric score across all dimensions (0-10)."""
         scores = [
-            self.skillset_match.rating,
-            self.academic_requirements.rating,
-            self.experience_level.rating,
-            self.professional_experience.rating,
-            self.language_requirements.rating,
+            self.skillset_match.score,
+            self.academic_requirements.score,
+            self.experience_level.score,
+            self.professional_experience.score,
+            self.language_requirements.score,
+            self.preference_alignment.score,
         ]
         return sum(scores) / len(scores)
+
+    def to_legacy_format(self) -> dict:
+        """
+        Convert to legacy format (0-100 scale) with evidence included.
+        This format is compatible with the existing database structure and frontend.
+        """
+        def scale_score(score: int) -> int:
+            """Convert 0-10 score to 0-100 scale."""
+            return score * 10
+
+        return {
+            # Category scores (0-100 scale for compatibility)
+            "skillset": scale_score(self.skillset_match.score),
+            "academic": scale_score(self.academic_requirements.score),
+            "experience": scale_score(self.experience_level.score),
+            "professional": scale_score(self.professional_experience.score),
+            "language": scale_score(self.language_requirements.score),
+            "preference": scale_score(self.preference_alignment.score),
+            "overall": int(self.average_score * 10),
+
+            # Evidence/reasoning for each category (for frontend display)
+            "reasoning": {
+                "skillset_match": {
+                    "score": scale_score(self.skillset_match.score),
+                    "evidence": self.skillset_match.evidence
+                },
+                "academic_requirements": {
+                    "score": scale_score(self.academic_requirements.score),
+                    "evidence": self.academic_requirements.evidence
+                },
+                "experience_level": {
+                    "score": scale_score(self.experience_level.score),
+                    "evidence": self.experience_level.evidence
+                },
+                "professional_experience": {
+                    "score": scale_score(self.professional_experience.score),
+                    "evidence": self.professional_experience.evidence
+                },
+                "language_requirements": {
+                    "score": scale_score(self.language_requirements.score),
+                    "evidence": self.language_requirements.evidence
+                },
+                "preference_alignment": {
+                    "score": scale_score(self.preference_alignment.score),
+                    "evidence": self.preference_alignment.evidence
+                }
+            }
+        }
     
 @dataclass
 class EvaluationResult:

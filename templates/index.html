@@ -831,6 +831,62 @@
         line-height: 1.4;
     }
 
+    /* New evidence-based scoring display */
+    .score-reasoning-categories {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .score-reasoning-category {
+        background-color: var(--background-color);
+        padding: 0.75rem;
+        border-radius: 6px;
+        border-left: 3px solid var(--border-color);
+    }
+
+    .score-reasoning-category-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.5rem;
+    }
+
+    .score-reasoning-category-label {
+        font-weight: 600;
+        font-size: 0.85rem;
+        color: var(--text-color);
+    }
+
+    .score-reasoning-category-score {
+        font-weight: 700;
+        font-size: 0.85rem;
+        padding: 0.15rem 0.5rem;
+        border-radius: 4px;
+    }
+
+    .score-reasoning-category-score.score-high {
+        background-color: #d1fae5;
+        color: #065f46;
+    }
+
+    .score-reasoning-category-score.score-medium {
+        background-color: #fef3c7;
+        color: #92400e;
+    }
+
+    .score-reasoning-category-score.score-low {
+        background-color: #fee2e2;
+        color: #991b1b;
+    }
+
+    .score-reasoning-category-evidence {
+        font-size: 0.8rem;
+        line-height: 1.5;
+        color: var(--text-secondary);
+        white-space: pre-wrap;
+    }
+
     .modal-nav-bar {
         padding: 0.5rem 1.5rem;
         margin: 1.2rem 0;
@@ -1217,11 +1273,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <span class="score-breakdown-value">${details.preference}%</span>
                             </div>
                         </div>
-                        ${details.summary ? `
-                            <div class="score-tooltip-summary">${details.summary}</div>
-                        ` : (details.reasoning && details.reasoning.summary ? `
-                            <div class="score-tooltip-summary">${details.reasoning.summary}</div>
-                        ` : '')}
+                        <div class="score-tooltip-summary">Click to see detailed evidence</div>
                     </div>
                 `;
             } catch (e) {
@@ -1606,14 +1658,46 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                 `;
 
-                // Populate summary (updated for new score structure)
+                // Populate reasoning (supports both old and new formats)
                 let reasoningHTML = '';
-                if (details.summary) {
-                    reasoningHTML += `<div class="score-reasoning-summary">${details.summary}</div>`;
-                }
 
-                // Legacy support for old reasoning structure
-                if (details.reasoning) {
+                // Check if we have the new evidence-based format
+                if (details.reasoning && (details.reasoning.skillset_match || details.reasoning.academic_requirements)) {
+                    // New format with evidence for each category
+                    const categories = [
+                        { key: 'skillset_match', label: 'Skillset Match' },
+                        { key: 'academic_requirements', label: 'Academic Requirements' },
+                        { key: 'experience_level', label: 'Experience Level' },
+                        { key: 'professional_experience', label: 'Professional Experience' },
+                        { key: 'language_requirements', label: 'Language Requirements' },
+                        { key: 'preference_alignment', label: 'Preference Alignment' }
+                    ];
+
+                    reasoningHTML += '<div class="score-reasoning-categories">';
+                    categories.forEach(cat => {
+                        if (details.reasoning[cat.key]) {
+                            const score = details.reasoning[cat.key].score;
+                            const evidence = details.reasoning[cat.key].evidence;
+                            const scoreClass = score >= 80 ? 'score-high' : score >= 60 ? 'score-medium' : 'score-low';
+
+                            reasoningHTML += `
+                                <div class="score-reasoning-category">
+                                    <div class="score-reasoning-category-header">
+                                        <span class="score-reasoning-category-label">${cat.label}</span>
+                                        <span class="score-reasoning-category-score ${scoreClass}">${score}%</span>
+                                    </div>
+                                    <div class="score-reasoning-category-evidence">${evidence}</div>
+                                </div>
+                            `;
+                        }
+                    });
+                    reasoningHTML += '</div>';
+                } else if (details.reasoning) {
+                    // Legacy format with strengths/concerns
+                    if (details.summary) {
+                        reasoningHTML += `<div class="score-reasoning-summary">${details.summary}</div>`;
+                    }
+
                     if (details.reasoning.strengths && details.reasoning.strengths.length > 0) {
                         reasoningHTML += '<h4 class="score-reasoning-strengths">✓ Strengths</h4><ul class="score-reasoning-strengths">';
                         details.reasoning.strengths.forEach(strength => {

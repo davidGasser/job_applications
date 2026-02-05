@@ -56,32 +56,32 @@ services:
     tty: true
     command: /bin/bash
     depends_on:
-      #- llamacpp
-      #- ollama
       - llama-cpp-server
+      - ollama
     environment:
-      - LLAMACPP_HOST=http://llamacpp:11434
-      #- OLLAMA_HOST=http://ollama:11434
+      - LLAMA_CPP_HOST=http://llama-cpp-server:11434
+      - OLLAMA_HOST=http://ollama:11434
 
-  # ollama:
-  #   image: ollama/ollama:latest
-  #   container_name: ollama
-  #   volumes:
-  #     - ollama:/root/.ollama
-  #   ports:
-  #     - 11434:11434
-  #   environment:
-  #     - OLLAMA_KEEP_ALIVE=24h
-  #     - OLLAMA_FLASH_ATTENTION=true
-  #     - OLLAMA_KV_CACHE_TYPE=q8_0
-  #     - OLLAMA_NUM_PARALLEL=2
-  #   deploy:
-  #     resources:
-  #       reservations:
-  #         devices:
-  #           - driver: nvidia
-  #             count: all
-  #             capabilities: [gpu]
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    volumes:
+      - ollama:/root/.ollama
+    ports:
+      - "11435:11434"  # Map to port 11435 externally to avoid conflict with llama-cpp
+    environment:
+      - OLLAMA_KEEP_ALIVE=24h
+      - OLLAMA_FLASH_ATTENTION=true
+      - OLLAMA_KV_CACHE_TYPE=q8_0
+      - OLLAMA_NUM_PARALLEL=2
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped
 
   llama-cpp-server:
     image: ghcr.io/ggml-org/llama.cpp:server-cuda

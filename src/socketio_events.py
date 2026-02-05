@@ -8,8 +8,7 @@ import threading
 from sqlalchemy.exc import IntegrityError
 import json
 
-from job_scoring import score_with_summary_gemini
-from google import genai
+from llama_cpp_scoring import CandidateEvaluator, LlamaCppConfig
 
 
 # Setup component-specific loggers
@@ -62,9 +61,10 @@ def register_socketio_events(socketio, app):
                 if not cv_text or not preferences:
                     queue_logger.warning("No user profile found. Jobs will be assigned default score of 80.")
 
-            # Create Gemini client ONCE per worker for efficient connection reuse
+            # Create CandidateEvaluator ONCE per worker for efficient connection reuse
             # This significantly improves performance for parallel processing
-            gemini_client = genai.Client(api_key=os.getenv("API_KEY_GEMINI"))
+            llama_config = LlamaCppConfig.from_env()
+            evaluator = CandidateEvaluator(config=llama_config)
 
             while True:
                 job_data = queue.get()  # Blocks here waiting for a job
@@ -105,19 +105,80 @@ def register_socketio_events(socketio, app):
                                     "preference": 80,
                                     "overall": 80,
                                     "reasoning": {
-                                        "strengths": ["No CV/preferences provided - default score applied"],
-                                        "concerns": [],
-                                        "summary": "Default score applied due to missing user profile information."
+                                        "skillset_match": {
+                                            "score": 80,
+                                            "evidence": "No CV/preferences provided - default score applied"
+                                        },
+                                        "academic_requirements": {
+                                            "score": 80,
+                                            "evidence": "No CV/preferences provided - default score applied"
+                                        },
+                                        "experience_level": {
+                                            "score": 80,
+                                            "evidence": "No CV/preferences provided - default score applied"
+                                        },
+                                        "professional_experience": {
+                                            "score": 80,
+                                            "evidence": "No CV/preferences provided - default score applied"
+                                        },
+                                        "language_requirements": {
+                                            "score": 80,
+                                            "evidence": "No CV/preferences provided - default score applied"
+                                        },
+                                        "preference_alignment": {
+                                            "score": 80,
+                                            "evidence": "No CV/preferences provided - default score applied"
+                                        }
                                     }
                                 }
                                 matching_score = 80.0
                             else:
-                                # Score using the LLM (reuse the same client for efficiency)
-                                score_dict = score_with_summary_gemini(
-                                    job_data, cv_text, preferences, no_preferences,
-                                    client=gemini_client
-                                )
-                                matching_score = float(score_dict.get("overall", 0))
+                                # Score using the llama.cpp evaluator
+                                result = evaluator.evaluate(job_data, cv_text, preferences)
+
+                                if result.success and result.assessment:
+                                    # Convert to legacy format (0-100 scale) with evidence
+                                    score_dict = result.assessment.to_legacy_format()
+                                    matching_score = float(score_dict.get("overall", 0))
+                                else:
+                                    # Evaluation failed, use default score
+                                    queue_logger.warning(f"Evaluation failed for {job_data['title']}: {result.error}")
+                                    score_dict = {
+                                        "skillset": 50,
+                                        "academic": 50,
+                                        "experience": 50,
+                                        "professional": 50,
+                                        "language": 50,
+                                        "preference": 50,
+                                        "overall": 50,
+                                        "reasoning": {
+                                            "skillset_match": {
+                                                "score": 50,
+                                                "evidence": f"Evaluation error: {result.error}"
+                                            },
+                                            "academic_requirements": {
+                                                "score": 50,
+                                                "evidence": f"Evaluation error: {result.error}"
+                                            },
+                                            "experience_level": {
+                                                "score": 50,
+                                                "evidence": f"Evaluation error: {result.error}"
+                                            },
+                                            "professional_experience": {
+                                                "score": 50,
+                                                "evidence": f"Evaluation error: {result.error}"
+                                            },
+                                            "language_requirements": {
+                                                "score": 50,
+                                                "evidence": f"Evaluation error: {result.error}"
+                                            },
+                                            "preference_alignment": {
+                                                "score": 50,
+                                                "evidence": f"Evaluation error: {result.error}"
+                                            }
+                                        }
+                                    }
+                                    matching_score = 50.0
 
                             # Store the overall score and full details
                             job_data["matching_score"] = matching_score
