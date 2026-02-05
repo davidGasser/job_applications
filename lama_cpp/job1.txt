@@ -1,9 +1,0 @@
-{
-  "skillset": 80,
-  "academic": 100,
-  "experience": 90,
-  "professional": 95,
-  "language": 100,
-  "preference": 85,
-  "overall": 92
-}

@@ -1,176 +1,104 @@
-# from google import genai
-# from google.genai import types 
-from math import exp
+"""
+Candidate Evaluation using llama.cpp server.
 
-import ollama
+This module provides CV-to-job matching using a local llama.cpp server
+with GPU acceleration.
+"""
+
+from __future__ import annotations
+
 import os
 import time
-import json
-from pathlib import Path
-from pydantic import BaseModel, ConfigDict, Field
-from typing import Literal, List
+import logging
 from enum import Enum
-import requests
-
+from dataclasses import dataclass
+from typing import Any
+from pathlib import Path
 import httpx
-import asyncio
+from pydantic import BaseModel, Field, ConfigDict
+from typing import List
+import re 
+
+logger = logging.getLogger(__name__)
 
 
-class Comparison(BaseModel):
-    job_requirements: str = Field(...,description="relevant info from the requirements of the job for the rating")
-    candidate_qualifications: str = Field(...,description="relevant info from the qualifications of the candidate for the rating")
-    rating: Literal["Absolute Mismatch", "Poor fit", "Sufficient", "Satisfactory","Good match", "Great match"]
-    
-class Rating(BaseModel):
-    skillset: Comparison
-    academics: Comparison
-    seniority: Comparison
-    experience: Comparison
-    certification: Comparison
-    languages: Comparison
-    preferences: Comparison
+# --- 1. Data Models ---
+# class RatingEnum(str, Enum):
+#     GREAT = "Great"
+#     GOOD = "Good"
+#     OKAY = "Okay"
+#     LACKING = "Lacking"
+#     POOR = "Poor"
 
+#     @property
+#     def score(self) -> int:
+#         """Numeric score for sorting/averaging."""
+#         return {
+#             self.GREAT: 100,
+#             self.GOOD: 75,
+#             self.OKAY: 50,
+#             self.LACKING: 25,
+#             self.POOR: 0,
+#         }[self]
 
-async def chat(model: str, system_prompt: str, user_prompt) -> str:
-    ollama_host = os.getenv('OLLAMA_HOST', 'http://localhost:11434')
-    
-    async with httpx.AsyncClient(timeout=300.0) as client:
-        response = await client.post(
-            f"{ollama_host}/api/chat",
-            json={
-                "model": model,
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
-                ],
-                "stream": False,
-                "options": {"temperature": 0, "num_predictions":-1}
-            }
+#     @property
+#     def average_score(self) -> float:
+#         """Calculate average numeric score across all dimensions."""
+#         scores = [
+#             self.skillset_match.rating.score,
+#             self.academic_requirements.rating.score,
+#             self.experience_level.rating.score,
+#             self.professional_experience.rating.score,
+#             self.language_requirements.rating.score,
+#         ]
+#         return sum(scores) / len(scores)
+
+# --- 2. Configuration ---
+@dataclass(frozen=True)
+class LlamaCppConfig:
+    """Configuration for llama.cpp server connection."""
+
+    host: str = "http://llama-cpp-server:11434"
+    timeout_seconds: float = 120.0
+    max_retries: int = 2
+    temperature: float = 0.0
+    max_tokens: int = 2048
+
+    @classmethod
+    def from_env(cls) -> "LlamaCppConfig":
+        """Create config from environment variables."""
+        return cls(
+            host=os.getenv("LLAMA_CPP_HOST", "http://llama-cpp-server:11434"),
+            timeout_seconds=float(os.getenv("LLAMA_CPP_TIMEOUT", "120")),
+            temperature=float(os.getenv("LLAMA_CPP_TEMPERATURE", "0")),
+            max_tokens=int(os.getenv("LLAMA_CPP_MAX_TOKENS", "2048")),
         )
-        return response.json()["message"]["content"]
+
+
+# class EvaluationDetail(BaseModel):
+#     """Explicit structure for individual evaluation categories."""
+#     rating: RatingEnum = Field(..., description="The qualitative grade assigned to this category")
+#     reasons: List[str] = Field(default_factory=list, description="List of specific justifications for the rating")
     
+# class CandidateAssessment(BaseModel):
+#     """Root class mapping the JSON input to Python attributes."""
     
-async def summarize_job_description(model:str, job:str, **kwargs) ->str:
+#     skillset_match: EvaluationDetail = Field(alias="Skillset Match")
+#     academic_requirements: EvaluationDetail = Field(alias="Academic Requirements")
+#     experience_level: EvaluationDetail = Field(alias="Experience Level")
+#     professional_experience: EvaluationDetail = Field(alias="Professional Experience")
+#     language_requirements: EvaluationDetail = Field(alias="Language Requirements")
 
-    system_prompt= f"""
-            List the key requirements from this job posting:
-            - Skills needed
-            - Education needed  
-            - Experience needed
-            - Any certifications, licenses, publications, or other professional credentials needed?
-            - Languages needed
-            - Language of the job description
-            - Location/remote policy
-            - salary/benefits
-
-            Be concise, use fragments not sentences.
-            No introductions e.g. 'Here are the ...'. 
-            """
-    user_prompt = f"""
-            JOB:
-            {job}
-            """
-
-    JD_summary = await chat(model, system_prompt, user_prompt)
-    print("Job description summarization finished.")
-    return JD_summary 
-
-
-async def summarize_cv(model:str, cv:str, **kwargs) ->str:
-
-    system_prompt= f"""
-            List the key elemements from this CV:
-            - Skills 
-            - Practical experience from projects / jobs
-            - Education including grades.
-            - job experience
-            - certifications, licenses, publications, or other professional credentials
-            - Spoken Languages incl. levels
-            Be concise, use fragments not sentences.
-            Strictly no introductions or fluff e.g. 'Here are the ...'. 
-            """
-    user_prompt = f"""
-            cv:
-            {cv}
-            """
-
-    CV_summary = await chat(model, system_prompt, user_prompt)
-    print("CV summarization finished.")
-    return CV_summary 
-
-
-async def compare(summarization_model:str, comparison_model:str, job: dict, cv: str, preferences: str, **kwargs) -> str:
-        
-    JD_summary, CV_summary = await asyncio.gather(
-        summarize_job_description(summarization_model,job["description"]),
-        summarize_cv(summarization_model, cv)
-    )
+#     # This allows the model to accept both the alias and the attribute name
+#     model_config = ConfigDict(
+#         populate_by_name=True,
+#         str_strip_whitespace=True
+#     )
     
-    system_prompt = f"""
-        You are an expert HR resume analyst. 
-            Your task is to compare the candidate's application against the descriptions.
-            To do so consider the following criteria:
-            1. Skillset Match: Does the applicant possess the required technical/soft skills,
-            or could they acquire them quickly given their background?
-            2. Academic Requirements: Are degree requirements, field of study, and grade
-            thresholds (if specified) met?
-            3. Experience Level: Is the applicant appropriately qualified (not under or
-            over-qualified) for the seniority level?
-            4. Professional Experience: Does the applicant have relevant industry/domain
-            experience and comparable role experience?
-            5. Language Requirements: What languages does the applicant speak? What languages are required by the job posting?
-            Can they read the job description?
-            
-            For each criteria (Skillset, Academic, Experience, Professional_experience, Language) provide a final rating on the scale:
-            {[rating.value for rating in RatingEnum]} with meaning:
-            "Great": The candidate fulfills all requirements for this criteria fully.
-            "Good": Any requirements missing should be relatively easy for the candidate fulfill quickly.
-            "Okay": There are small gaps in the cv that the candidate cannot fulfill quickly.
-            "Lacking": There are skills lacking and it is not clear if the candidate could fulfill the job.
-            "Poor": The candidate does not fulfill an important requirement and cannot do the job.
-    """
-    
-    user_prompt = f"""
-        <JOB>
-        TITLE: {job["title"]}
-        COMPANY: {job["company"]}
-        SUMMARY: {JD_summary}
-        </JOB>
-
-        <CANDIDATE PROFILE>
-        {CV_summary}
-        </CANDIDATE PROFILE>
-        
-        <CANDIDATE PREFERENCES>
-        {preferences}
-        </CANDIDATE PREFERENCES>
-        """
-    
-    ollama_host = os.getenv('OLLAMA_HOST', 'http://localhost:11434')
-    client = ollama.Client(host=ollama_host)
-    client.pull(comparison_model)
-    
-    response = client.chat(
-        comparison_model, 
-        messages=[
-            {"role":"system", "content": system_prompt},
-            {"role":"user", "content": user_prompt}
-        ], 
-        stream = False, 
-        options={
-            "temperature": 0, 
-            "num_predict": -1
-        },
-        format=Rating.model_json_schema()
-    )
-    return Rating.model_validate_json(response.message.content).model_dump_json(indent=2)
-
-###########
-
 class NumEvaluationDetail(BaseModel):
     """Explicit structure for individual evaluation categories."""
-    information: List[str] = Field(default_factory=list, description="Few short bulletpoints of relevant information for rating.")
-    rating: int = Field(..., ge=0, le=10, description="The score assigned to this category")
+    evidence: str = Field(..., description="The evidence for the scoring.")
+    score: int = Field(..., ge=0, le=10, description="The score assigned to this criterion")
     
 
 class NumCandidateAssessment(BaseModel):
@@ -181,6 +109,7 @@ class NumCandidateAssessment(BaseModel):
     experience_level: NumEvaluationDetail = Field(alias="Experience Level")
     professional_experience: NumEvaluationDetail = Field(alias="Professional Experience")
     language_requirements: NumEvaluationDetail = Field(alias="Language Requirements")
+    preference_alignment: NumEvaluationDetail = Field(alias="Preference Alignment")
 
     # This allows the model to accept both the alias and the attribute name
     model_config = ConfigDict(
@@ -188,640 +117,373 @@ class NumCandidateAssessment(BaseModel):
         str_strip_whitespace=True
     )
     
-def summarize_cv_and_jd(model:str, cv:str, job:str, preferences, **kwargs) ->str:
-
-    ollama_host = os.getenv('OLLAMA_HOST', 'http://localhost:11434')
-    client = ollama.Client(host=ollama_host)
-    client.pull(model)
+    @property
+    def average_score(self) -> float:
+        """Calculate average numeric score across all dimensions."""
+        scores = [
+            self.skillset_match.rating,
+            self.academic_requirements.rating,
+            self.experience_level.rating,
+            self.professional_experience.rating,
+            self.language_requirements.rating,
+        ]
+        return sum(scores) / len(scores)
     
-    system_prompt= f"""
-            You are an expert HR resume analyst. 
-            Your task is to compare the candidate's application against the descriptions.
-            To do so consider the following criteria:
-            1. Skillset Match: Does the applicant possess the required technical/soft skills,
+@dataclass
+class EvaluationResult:
+    """Result wrapper with timing and error information."""
+
+    assessment: NumCandidateAssessment | None
+    duration_seconds: float
+    error: str | None = None
+
+    @property
+    def success(self) -> bool:
+        return self.assessment is not None and self.error is None
+
+
+# --- 3. Prompt Templates ---
+SYSTEM_PROMPT = """
+            You are a helpful HR assistant.
+            Your task is to compare a candidate's application against the different job descriptions.
+            For each criteria (Skillset, Academic, Experience, Professional_experience, Language) provide a thoughtful rating on a scale from 0-10 with 0 being the worst and 10 the best.
+            For each criteria, think step by step and consider these aspects:
+            1. Skillset Match: Does the candidate possess the required technical/soft skills,
             or could they acquire them quickly given their background?
             2. Academic Requirements: Are degree requirements, field of study, and grade
             thresholds (if specified) met?
-            3. Experience Level: Is the applicant appropriately qualified (not under or
+            3. Experience Level: Is the candidate appropriately qualified (not under or
             over-qualified) for the seniority level?
-            4. Professional Experience: Does the applicant have relevant industry/domain
+            4. Professional Experience: Does the candidate have relevant industry/domain
             experience and comparable role experience?
-            5. Language Requirements: What languages does the applicant speak? What languages are required by the job posting?
-            Can they read the job description?
+            5. Language Requirements: What languages does the candidate speak? What languages are required by the job posting?
+            Is the job description originally in a language that the candidate can speak?
+            6. Preference Alignment: How well does the job align with the preferences of the candidate?
             
-            For each criteria (Skillset, Academic, Experience, Professional_experience, Language) provide a final rating on a scale
-            from 0-10 with 0 being the worst and 10 the best.
+            Only focus on what the job requires, and if the candidate is able to fulfill these requirement, no additional information is needed. Base your scoring solely on this information.
+            In the evidence field compare what the job requires and what the candidate has, e.g.: 
+            'Job: Nursing Certificate; Candidate: no nursing cert. mentioned' or 'Job: AI Agents and ML expertise; Candidate: first exp. with agents and deep ML knowledge'
             
-            ##Example output: 
-            {{
-                "skillset_match": {{
-                    "information": [
-                    "Job: Expertise in RAG pipelines and Agentic AI. Candidate: Built production-level RAG tools and multi-agent systems at Munich Re.",
-                    "Job: Cloud deployment (AWS/Azure). Candidate: Strong Azure background; lacks AWS-specific experience.",
-                    "Job: Full-stack prototyping. Candidate: Proficient in Python/React; meets end-to-end development needs."
-                    ],
-                    "rating": 9
-                }},
-                "academic_requirements": {{
-                    "information": [
-                    "Job: M.Sc. in CS or related AI field. Candidate: M.Sc. Robotics, Cognition, Intelligence (GPA 3.7).",
-                    "Job: Focus on data science. Candidate: Thesis on financial time series classification aligns perfectly."
-                    ],
-                    "rating": 10
-                }},
-                "experience_level": {{
-                    "information": [
-                    "Job: 5+ years professional experience. Candidate: ~2 years via internships; technically advanced but junior.",
-                    "Job: Leadership/Seniority. Candidate: Experience leading project workstreams, but lacks formal 'Senior' title history."
-                    ],
-                    "rating": 6
-                }},
-                "professional_experience": {{
-                    "information": [
-                    "Job: Client-facing consulting. Candidate: High-stakes stakeholder management at Siemens AG and Munich Re.",
-                    "Job: Industry experience in Finance/Insurance. Candidate: Direct experience in reinsurance sector; strong domain match."
-                    ],
-                    "rating": 8
-                }},
-                "language_requirements": {{
-                    "information": [
-                    "Job: Business fluent Japanese (N1). Candidate: No Japanese language skills mentioned.",
-                    "Job: Fluent English. Candidate: Native speaker; exceeds requirement."
-                    ],
-                    "rating": 3
-                }}
-            }}
+            The candidate is: 
+            <CANDIDATE PROFILE>
+            {cv}
+            </CANDIDATE PROFILE>
+        
+            <CANDIDATE PREFERENCES>
+            {preferences}
+            </CANDIDATE PREFERENCES>
             """
-    user_prompt = f"""
+
+USER_PROMPT_TEMPLATE = """        
         <JOB>
-      {job}
+        TITLE: {title}
+        COMPANY: {company}
+        DESCRIPTION: {description}
         </JOB>
-
-        <CANDIDATE PROFILE>
-        {cv}
-        </CANDIDATE PROFILE>
-        
-        <CANDIDATE PREFERENCES>
-        {preferences}
-        </CANDIDATE PREFERENCES>
-        """
-
-    response = client.chat(
-        model, 
-        messages=[
-            {"role":"system", "content": system_prompt},
-            {"role":"user", "content": user_prompt}
-        ], 
-        stream = False, 
-        options={
-            "temperature": 0, 
-            "num_predict": -1
-        },
-    # )
-    # print("Summarization finished.")
-    # return response.message.content 
-        format=NumCandidateAssessment.model_json_schema()
-    )
-    return NumCandidateAssessment.model_validate_json(response.message.content).model_dump_json(indent=2)
+"""
 
 
-def score_on_summary(summary_model, reasoning_model, cv, job, preferences, **kwargs): 
-    
-    ollama_host = os.getenv('OLLAMA_HOST', 'http://localhost:11434')
-    client = ollama.Client(host=ollama_host)
-    client.pull(reasoning_model)
-    
-    prompt = """
-        You are a extraction expert, specializing in extracting crucial information from a text, 
-        and putting it in a valid JSON output. If you can't find what you are looking for in the text, simply enter 'None' for this field.
-        
-        You're second task is to ensure consistency. If you feel like the score does not fit the reasons in the summary, you can overrule the initial score. 
-        For each criteria (Skillset, Academic, Experience, Professional_experience, Language) provide a final rating on the scale:
-        {[rating.value for rating in RatingEnum]} with meaning:
-        "Great": The candidate fulfills all requirements for this criteria fully.
-        "Good": Any requirements missing should be relatively easy for the candidate fulfill quickly.
-        "Okay": There are small gaps in the cv that the candidate cannot fulfill quickly.
-        "Lacking": There are skills lacking and it is not clear if the candidate could fulfill the job.
-        "Poor": The candidate does not fulfill an important requirement and cannot do the job. 
-        
-        Be concise, use fragments and bulletpoints, not sentences.
-        Use abbreviations e.g. 5 years of python experience -> 5 yrs. python exp.
-        Output your results in a valid JSON of format: 
-            {{
-                "Skillset Match": {{
-                    "rating": "...",
-                    "reason": ["reasons in the text"]
-                }},
-                "Academic Requirements": {{
-                    "rating": "...",
-                    "reason": ["reasons in the text"]
-                }},
-                "Experience Level": {{
-                    "rating": "...",
-                    "reason": ["reasons in the text"]
-                }},
-                "Professional Experience": {{
-                    "rating": "...",
-                    "reason": ["reasons in the text"]
-                }},
-                "Language Requirements": {{
-                    "rating": "...",
-                    "reason": ["reasons in the text"]
-                }},
-     """
-    
-    
-    summary = summarize_cv_and_jd(summary_model, cv, job["description"], preferences, **kwargs)
-    user_message = f"Please extract a valid JSON from this text: {summary}"
-    response = client.chat(
-        reasoning_model, 
-        messages=[
-            {"role":"system", "content": prompt},
-            {"role":"user", "content": user_message}
-        ], 
-        stream = False, 
-        options={
-            "temperature": 0, 
-            "num_predict": -1
-        },
-        format=CandidateAssessment.model_json_schema()
-    )
-    return CandidateAssessment.model_validate_json(response.message.content).model_dump_json(indent=2)
-    
-    
-def score_with_summary(job, cv, preferences, model, **kwargs):
+# --- 4. Evaluator Class ---
+class CandidateEvaluator:
+    """
+    Evaluates candidates against job descriptions using llama.cpp server.
+    """
 
-    ollama_host = os.getenv('OLLAMA_HOST', 'http://localhost:11434')
-    client = ollama.Client(host=ollama_host)
-    client.pull(model)
+    def __init__(self, config: LlamaCppConfig | None = None):
+        self.config = config or LlamaCppConfig.from_env()
+        self._client: httpx.Client | None = None
+        self._schema = NumCandidateAssessment.model_json_schema()
 
-    prompt = """
-            Compare the requirements of the job descriptions with the qualifications of the CV.
-            The fields to compare are:
+    @property
+    def client(self) -> httpx.Client:
+        """Lazy-initialized HTTP client with connection pooling."""
+        if self._client is None:
+            self._client = httpx.Client(
+                timeout=httpx.Timeout(self.config.timeout_seconds),
+                limits=httpx.Limits(max_connections=10),
+            )
+        return self._client
 
-            1. Skillset Match: Does the applicant possess the required technical/soft skills,
-            or could they acquire them quickly given their background?
+    def close(self):
+        """Clean up resources."""
+        if self._client:
+            self._client.close()
+            self._client = None
 
-            2. Academic Requirements: Are degree requirements, field of study, and grade
-            thresholds (if specified) met?
+    def __enter__(self) -> "CandidateEvaluator":
+        return self
 
-            3. Experience Level: Is the applicant appropriately qualified (not under or
-            over-qualified) for the seniority level?
+    def __exit__(self, *args):
+        self.close()
 
-            4. Professional Experience: Does the applicant have relevant industry/domain
-            experience and comparable role experience?
+    def health_check(self) -> bool:
+        """Check if llama.cpp server is available."""
+        try:
+            response = self.client.get(f"{self.config.host}/health")
+            return response.status_code == 200
+        except httpx.RequestError:
+            return False
 
-            5. Language Requirements: What languages does the applicant speak? What languages are required by the job posting?
-            Can they read the job description?
-
-            6. Preference Alignment: Does the role, company, location, and work style match
-            the applicant's stated preferences?
-            
-            Use telegraphic style (5 yrs. python instead of experience of 5 years is required for python). 
-            Write 'None' for information not present or clearly inferable.
-            Be concise use fragments, bulletpoints instead of sentences.
-            """
-    message = f"""
-                # CV:
-                {cv}
-
-                # PREFERENCES:
-                {preferences}
-
-                # JOB DETAILS
-                TITLE: {job["title"]}
-                COMPANY: {job["company"]}
-                DESCRIPTION: {job["description"]}
-                """
-
-    response = client.chat(
-        model,
-        messages=[
+    def _build_messages(
+        self, job: dict[str, Any], cv: str, preferences: str
+    ) -> list[dict[str, str]]:
+        """Build the chat messages for the API request."""
+        prompt = SYSTEM_PROMPT.format(
+            preferences=preferences or "No specific preferences stated.",
+            cv=cv
+        )
+        user_content = USER_PROMPT_TEMPLATE.format(
+            title=job.get("title", "Unknown"),
+            company=job.get("company", "Unknown"),
+            description=job.get("description", "")
+        )
+        return [
             {"role": "system", "content": prompt},
-            {"role": "user", "content": message}
-        ],
-        stream=False,
-        options={
-            "num_predict": -1,
-            "temperature": 0
-        },
-        format=Rating.model_json_schema()
-    )
+            {"role": "user", "content": user_content}
+        ]
 
-    return Rating.model_validate_json(response.message.content).model_dump_json(indent=2)
-
-
-def score_separately(job, cv, preferences, model, **kwargs):
-    llamacpp_host = os.getenv('LLAMACPP_HOST', 'http://localhost:11434')
-
-    # Combine prompt and context to reduce redundancy
-    system_prompt = f"""Your task is to rate how well job postings fit a provided CV and preference statement.
-    Your rating scale is:
-    0 = Critical mismatch, 25 = Poor match, 50 = Acceptable, 75 = Good match, 100 = Excellent match
-    Make small adjustments of ±5-10 points if needed.
-    """
-    context = f"""
-    CV:
-    {cv}
-
-    PREFERENCES:
-    {preferences}
-
-    JOB DETAILS
-    TITLE: {job["title"]}
-    COMPANY: {job["company"]}
-    DESCRIPTION: {job["description"]}
-
-    OUTPUT FORMAT: JSON of 
-    {{
-        skillset: 0-100
-        academic: 0-100
-        experience: 0-100
-        professional: 0-100
-        language: 0-100
-        preference: 0-100
-        overall: 0-100
-    }}
-    """
-
-    questions = [
-        "Skillset Match: Does the applicant possess the required technical/soft skills, or could they acquire them quickly given their background?",
-        "Academic Requirements: Are degree requirements, field of study, and grade thresholds (if specified) met?",
-        "Experience Level: Is the applicant appropriately qualified (not under or over-qualified) for the seniority level?",
-        "Professional Experience: Does the applicant have relevant industry/domain experience and comparable role experience?",
-        "Language Requirements: What languages does the applicant speak? What languages are required by the job posting? Can they read the job description?",
-        "Preference Alignment: Does the role, company, location, and work style match the applicant's stated preferences?",
-        "Overall Assessment: Considering all factors, how successful and satisfied would the applicant likely be in this role?",
-    ]
-
-    # answers = []
     
-    # session_id = str(uuid.uuid4())
-    # start = time.time()
-    # requests.post(  
-    #     f"{llamacpp_host}/v1/completions", 
-    #     json = {
-    #         "model": model,
-    #         "prompt": f"{system_prompt}\n\n{context}",
-    #         "session_id": session_id,
-    #         "n_predict": 0
-    #     }
-    # )
-    # print("#"*60,"\n", f"prompt: {time.time()-start:.3f}","\n","#"*60)
-    # for q in questions:
-    #     start = time.time()
-    #     response = requests.post(  
-    #         f"{llamacpp_host}/v1/chat/completions", 
-    #         json = {
-    #             "model": model,
-    #             "messages": [
-    #                 {"role": "system", "content": f"{system_prompt}\n\n{context}"},
-    #                 {"role": "user", "content": q}
-    #             ],
-    #             "session_id": session_id,
-    #             "temperature": 0,
-    #             "n_predict": 25,
-    #             "prompt_cache_ro": True,
-    #             "response_format": {"type": "json_object"}
-    #         }
-    #     )
-    #     print("#"*60,"\n", f"tpq: {time.time()-start:.3f}","\n","#"*60)
-    #     answers.append(response.json()["choices"][0]["message"]["content"])
-    # return "\n".join(answers)
-    messages = [{"role": "system", "content": f"{system_prompt}\n\n{context}"}]
-    [messages.append({"role": "user", "content": q}) for q in questions]
-    
-    response = requests.post(  
-        f"{llamacpp_host}/v1/chat/completions", 
-        json = {
-            "model": model,
+    def _make_reasoning_request(self, messages: str) -> str:
+        payload = {
             "messages": messages,
-            # "session_id": session_id,
-            "temperature": 0,
-            "n_predict": 25,
-            # "prompt_cache_ro": True,
-            "response_format": {"type": "json_object"}
-        }
-    )
-    return response.json()["choices"][0]["message"]["content"]
-
-class JobExtraction(BaseModel):
-    """Extracted information from a job posting."""
-    #tasks: str = Field(max_length=600, description="All tasks defined in the job description (e.g. model finetuning, managing communication with stakeholders)")
-    # Education
-    degree_requirement: str = Field(max_length=100, description="Bachelor or Master in Business, Business Administration or similar.")
-    grade_requirement: str = Field(max_length=100, description="Requirements for GPA thresholds, honors requirements")
-    external_accreditations: str = Field(max_length = 200, description="published papers/work, certifications, licenses, accreditations")
-    # Experience
-    # skills: str = Field(max_length=600, description="All skills required by the job description.")
-    # years_of_experience: str = Field(max_length=100, description="e.g. 'senior', '3-5 years', 'entry-level', '10+ years'")
-    # industry_requirement: str = Field(max_length=200, description="Required domain expertise: healthcare, finance, manufacturing, etc.")
-    # # Languages
-    # required_languages: str = Field(max_length=150, description="Spoken/written languages required for the role. Not coding")
-    # posting_language: str = Field(max_length=30, description="Language the job posting is written in")
-    
-    # Logistics
-   # work_environment: str = Field(max_length=400, description="e.g. remote or hybrid, travel requirements, visa sponsorship, salary, benefits")
-    
-def extract_separate_then_score(job, cv, preferences, model, **kwargs): 
-    
-    ollama_host = os.getenv('OLLAMA_HOST', 'http://localhost:11434')
-    client = ollama.Client(host=ollama_host)
-    client.pull(model)
-    
-    prompt = """
-            Use telegraphic style (fragments, bulletpoints, not sentences). 
-            Write 'None' for information not present or clearly inferable.
-            Be concise.
-        """
-    response = client.chat(
-        model, 
-        messages=[
-            {"role":"system", "content": prompt},
-            {"role":"user", "content": f"{job}"}
-        ], 
-        stream = False, 
-        options={
-            "temperature": 0, 
-            "num_predict": -1
-        },
-        format=JobExtraction.model_json_schema()
-    )
-    return JobExtraction.model_validate_json(response.message.content).model_dump_json(indent=1)
-
-
-class RatingEnum(str, Enum):
-    GREAT = "Great"
-    GOOD = "Good"
-    OKAY = "Okay"
-    LACKING = "Lacking"
-    POOR = "Poor"
-
-class EvaluationDetail(BaseModel):
-    """Explicit structure for individual evaluation categories."""
-    rating: RatingEnum = Field(..., description="The qualitative grade assigned to this category")
-    reasons: List[str] = Field(default_factory=list, description="List of specific justifications for the rating")
-
-class CandidateAssessment(BaseModel):
-    """Root class mapping the JSON input to Python attributes."""
-    
-    skillset_match: EvaluationDetail = Field(alias="Skillset Match")
-    academic_requirements: EvaluationDetail = Field(alias="Academic Requirements")
-    experience_level: EvaluationDetail = Field(alias="Experience Level")
-    professional_experience: EvaluationDetail = Field(alias="Professional Experience")
-    language_requirements: EvaluationDetail = Field(alias="Language Requirements")
-
-    # This allows the model to accept both the alias and the attribute name
-    model_config = ConfigDict(
-        populate_by_name=True,
-        str_strip_whitespace=True
-    )
-
-
-def freeform_scoring(job, cv, preferences, model, **kwargs):
-
-    ollama_host = os.getenv('OLLAMA_HOST', 'http://localhost:11434')
-    client = ollama.Client(host=ollama_host)
-    client.pull(model)
-
-    prompt =f"""
-            You are an expert HR resume analyst. 
-            Your task is to compare the candidate's application against the descriptions.
-            To do so consider the following criteria:
-            1. Skillset Match: Does the applicant possess the required technical/soft skills,
-            or could they acquire them quickly given their background?
-            2. Academic Requirements: Are degree requirements, field of study, and grade
-            thresholds (if specified) met?
-            3. Experience Level: Is the applicant appropriately qualified (not under or
-            over-qualified) for the seniority level?
-            4. Professional Experience: Does the applicant have relevant industry/domain
-            experience and comparable role experience?
-            5. Language Requirements: What languages does the applicant speak? What languages are required by the job posting?
-            Can they read the job description?
-            
-            For each criteria (Skillset, Academic, Experience, Professional_experience, Language) provide a final rating on the scale:
-            {[rating.value for rating in RatingEnum]} with meaning:
-            "Great": The candidate fulfills all requirements for this criteria fully.
-            "Good": Any requirements missing should be relatively easy for the candidate fulfill quickly.
-            "Okay": There are small gaps in the cv that the candidate cannot fulfill quickly.
-            "Lacking": There are skills lacking and it is not clear if the candidate could fulfill the job.
-            "Poor": The candidate does not fulfill an important requirement and cannot do the job. 
-            
-            Be concise, use fragments and bulletpoints, not sentences.
-            Output your results in a valid JSON of format: 
-            {{
-                "Skillset Match": {{
-                    "rating": "...",
-                    "reason": ["very short explanation in bulletpoints"]
-                }},
-                "Academic Requirements": {{
-                    "rating": "...",
-                    "reason": ["very short explanation in bulletpoints"]
-                }},
-                "Experience Level": {{
-                    "rating": "...",
-                    "reason": ["very short explanation in bulletpoints"]
-                }},
-                "Professional Experience": {{
-                    "rating": "...",
-                    "reason": ["very short explanation in bulletpoints"]
-                }},
-                "Language Requirements": {{
-                    "rating": "...",
-                    "reason": ["very short explanation in bulletpoints"]
-                }},
-            }}
-            """
-            
-    message = f"""                
-                <CV> 
-                {cv}
-                </CV>
-                
-                <PREFERENCES>
-                {preferences}
-                </PREFERENCES>
-                
-                <JOB>
-                TITLE: {job["title"]}
-                COMPANY: {job["company"]}
-                DESCRIPTION: {job["description"]}
-                </JOB>
-                
-                For each criteria (Skillset, Academic, Experience, Professional_experience, Language) provide a final rating on the scale:
-                {[rating.value for rating in RatingEnum]}      
-                Please review the provided information and provide your final analysis in a structured JSON. 
-                Be concise, use fragments and bulletpoints, not sentences.
-                """
-    
-    response = client.chat(
-            model, 
-            messages=[
-                {"role":"system", "content": prompt},
-                {"role":"user", "content": message}
-            ], 
-            stream = False, 
-            options={
-                "temperature": 0, 
-                "num_predict": -1
+            "temperature": self.config.temperature,
+            "max_tokens": self.config.max_tokens,
+            "stream": False,
+            "response_format": {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "NumCandidateAssessment",
+                    "strict": True,
+                    "schema": self._schema,
+                },
             },
-            #format=CandidateAssessment.model_json_schema()
+        }
+
+        response = self.client.post(
+            f"{self.config.host}/v1/chat/completions",
+            json=payload,
         )
-    #return CandidateAssessment.model_validate_json(response.message.content).model_dump_json(indent=2)
-    return response.message.content
+        response.raise_for_status()
+
+        return response.json()
+        #return response.json()["choices"][0]["text"]
 
 
-
-
-    
-def score_with_summary_gemini(job, cv, preferences, no_pref, client=None, **kwargs):
-    """
-    Score a job against CV and preferences using Gemini API.
-
-    Args:
-        job: Job data dictionary
-        cv: Candidate's CV text
-        preferences: What the candidate wants
-        no_pref: What the candidate wants to avoid
-        client: Optional pre-initialized genai.Client (recommended for reuse)
-
-    Returns:
-        Dictionary with scoring results
-    """
-    # Create client if not provided (for backwards compatibility)
-    # But reusing a client is much more efficient for parallel processing
-    if client is None:
-        client = genai.Client(api_key=os.environ.get("API_KEY_GEMINI"))
-
-
-    prompt ="""
-            You are an expert HR analyst and resume screening AI. Your task is to compare a candidate's application against
-            one or more job descriptions and provide a structured analysis in JSON format.
-            ---------------------
-            Analyze the provided Job posting and the candidate profile on the following:
-            1. Skillset Match: Does the applicant possess the required technical/soft skills,
-            or could they acquire them quickly given their background?
-            2. Academic Requirements: Are degree requirements, field of study, and grade
-            thresholds (if specified) met?
-            3. Experience Level: Is the applicant appropriately qualified (not under or
-            over-qualified) for the seniority level?
-            4. Professional Experience: Does the applicant have relevant industry/domain
-            experience and comparable role experience?
-            5. Language Requirements: What languages does the applicant speak? What languages are required by the job posting?
-            Can they read the job description?
-            """
-    message = f"""                
-                # CV: 
-                {cv}
+    # def _make_structured_request(self, content: str) -> dict:
+        
                 
-                # PREFERENCES:
-                {preferences}
-                
-                # NO PREFERENCES: 
-                {no_pref}
-                
-                # JOB DETAILS
-                TITLE: {job["title"]}
-                COMPANY: {job["company"]}
-                DESCRIPTION: {job["description"]}
-                """
-    
-    response = client.models.generate_content(
-        model="gemini-2.0-flash-lite",
-        contents= message,
-        config = types.GenerateContentConfig(
-            system_instruction = prompt,
-            temperature = 0.0, 
-            responseMimeType = "application/json",
-            responseSchema = Score.model_json_schema(),
-        )
-    )
+    #     def clean_reasoning_output(text: str) -> str:
+    #         # Remove <think> tags
+    #         text = re.sub(r"</?think>", "", text)
 
-    score_dict = Score.model_validate_json(response.text).model_dump()
-    return calculate_final_score(score_dict)
+    #         # Remove markdown code fences
+    #         text = re.sub(r"```json|```", "", text)
+
+    #         return text.strip()
+        
+    #     prompt = """
+    #         You are a strict information extractor.
+
+    #         Rules:
+    #         - ONLY use information explicitly present in the input.
+    #         - DO NOT invent ratings or reasons.
+    #         - If information is missing, use null or an empty list.
+    #         - Output ONLY valid JSON.
+    #         - Do not include markdown or explanations.
+
+    #         Required JSON format:
+
+    #         {
+    #         "Skillset Match": { "rating": string | null, "reasons": string[] },
+    #         "Academic Requirements": { "rating": string | null, "reasons": string[] },
+    #         "Experience Level": { "rating": string | null, "reasons": string[] },
+    #         "Professional Experience": { "rating": string | null, "reasons": string[] },
+    #         "Language Requirements": { "rating": string | null, "reasons": string[] }
+    #         }
+    #     """
+        
+    #     payload = {
+    #         "messages": [
+    #             {
+    #                 "role": "system",
+    #                 "content": prompt
+    #             },
+    #             {
+    #                 "role": "user",
+    #                 "content": f"Extract structured data from the following evaluation: {clean_reasoning_output(content)}"
+    #             }
+    #         ],
+    #         "temperature": 0.0,
+    #         "max_tokens": 2048,
+    #         # "response_format": {
+    #         #     "type": "json_schema",
+    #         #     "json_schema": {
+    #         #         "name": "CandidateAssessment",
+    #         #         "strict": True,
+    #         #         "schema": self._schema,
+    #         #     },
+    #         # },
+    #     }
+
+    #     response = self.client.post(
+    #         f"{self.config.host}/v1/chat/completions",
+    #         json=payload,
+    #     )
+    #     response.raise_for_status()
     
-    # return Score.model_validate_json(response.text).model_dump_json(indent=2)
+    #     return response.json()
+
+    # def _make_request(self, messages: list[dict[str, str]]) -> dict:
+    #     """Make the API request to llama.cpp server with retry logic."""
+
+    #     # prompt = "\n".join(m["content"] for m in messages)
+    #     reasoning_output = self._make_reasoning_request(messages)
+    #     return reasoning_output
+    #     #return self._make_structured_request(reasoning_output)
+
+    def evaluate(
+        self,
+        job: dict[str, Any],
+        cv: str,
+        preferences: str = "",
+    ) -> EvaluationResult:
+        """
+        Evaluate a candidate against a job description.
+
+        Args:
+            job: Dictionary with 'title', 'company', and 'description' keys
+            cv: The candidate's CV/resume text
+            preferences: Optional candidate preferences string
+
+        Returns:
+            EvaluationResult containing the assessment or error information
+        """
+        start_time = time.perf_counter()
+
+        try:
+            messages = self._build_messages(job, cv, preferences)
+            response_data = self._make_reasoning_request(messages)
+
+            raw_json = response_data["choices"][0]["message"]["content"]
+            #assessment = raw_json
+            assessment = NumCandidateAssessment.model_validate_json(raw_json)
+
+            duration = time.perf_counter() - start_time
+            logger.info(
+                f"Evaluation completed in {duration:.2f}s, "
+               # f"average score: {assessment.average_score:.0f}"
+            )
+
+            return EvaluationResult(assessment=assessment, duration_seconds=duration)
+
+        except httpx.HTTPStatusError as e:
+            duration = time.perf_counter() - start_time
+            error_msg = f"API error {e.response.status_code}: {e.response.text[:200]}"
+            logger.error(error_msg)
+            return EvaluationResult(
+                assessment=None, duration_seconds=duration, error=error_msg
+            )
+
+        except Exception as e:
+            duration = time.perf_counter() - start_time
+            error_msg = f"{type(e).__name__}: {e}"
+            logger.error(f"Evaluation failed: {error_msg}")
+            return EvaluationResult(
+                assessment=None, duration_seconds=duration, error=error_msg
+            )
 
 
-def calculate_final_score(score_dict:dict): 
-    
-    summary = score_dict.pop("summary") if score_dict.get("summary") else None 
-    flag_smaller = False
-    # if the scoring is lower or equal to 5 it represents a mismatch that will be
-    # disqualifying in most cases
-    # punish lower scores more severely 
-    # shifted sigmoid function with a small scaling to punish smaller scores
-    for crit in score_dict: 
-        if score_dict[crit] <= 5: 
-            flag_smaller = True
-        score_dict[crit] = int(round(1/(1+exp(-score_dict[crit]/0.95+7)),2)*100)
-    
-    if flag_smaller: 
-        score_dict["overall"] = 0
-    else: 
-        score_dict["overall"] = int(sum(score_dict.values()) / len(score_dict))
-    
-    if summary: score_dict["summary"] = summary
-    return score_dict
+# --- 5. Async Version ---
+class AsyncCandidateEvaluator(CandidateEvaluator):
+    """Async version for evaluating multiple candidates concurrently."""
+
+    def __init__(self, config: LlamaCppConfig | None = None):
+        super().__init__(config)
+        self._async_client: httpx.AsyncClient | None = None
+
+    @property
+    def async_client(self) -> httpx.AsyncClient:
+        if self._async_client is None:
+            self._async_client = httpx.AsyncClient(
+                timeout=httpx.Timeout(self.config.timeout_seconds),
+                limits=httpx.Limits(max_connections=20),
+            )
+        return self._async_client
+
+    async def close_async(self):
+        if self._async_client:
+            await self._async_client.aclose()
+            self._async_client = None
+
+    async def __aenter__(self) -> "AsyncCandidateEvaluator":
+        return self
+
+    async def __aexit__(self, *args):
+        await self.close_async()
+
+    async def evaluate_async(
+        self,
+        job: dict[str, Any],
+        cv: str,
+        preferences: str = "",
+    ) -> EvaluationResult:
+        """Async version of evaluate()."""
+        start_time = time.perf_counter()
+
+        try:
+            messages = self._build_messages(job, cv, preferences)
+
+            payload = {
+                "messages": messages,
+                "temperature": self.config.temperature,
+                "max_tokens": self.config.max_tokens,
+                "stream": False,
+                "response_format": {
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "CandidateAssessment",
+                        "strict": True,
+                        "schema": self._schema,
+                    },
+                },
+            }
+
+            response = await self.async_client.post(
+                f"{self.config.host}/v1/chat/completions",
+                json=payload,
+            )
+            response.raise_for_status()
+
+            raw_json = response.json()["choices"][0]["message"]["content"]
+            assessment = CandidateAssessment.model_validate_json(raw_json)
+
+            return EvaluationResult(
+                assessment=assessment,
+                duration_seconds=time.perf_counter() - start_time,
+            )
+
+        except Exception as e:
+            return EvaluationResult(
+                assessment=None,
+                duration_seconds=time.perf_counter() - start_time,
+                error=f"{type(e).__name__}: {e}",
+            )
+
 
 if __name__ == "__main__":
 
-    import debugpy
-    debugpy.listen(("0.0.0.0", 5678))
-    print("⏳ Debugger listening on port 5678...")
-    # Uncomment to make app wait for debugger before continuing:
-    debugpy.wait_for_client()
-    print("✅ Ready for debugger attachment")
-        
-    model_llama_3b_q4 = "llama3.2:3b-instruct-q4_K_M"
-    model_llama_3b_q5 = "llama3.2:3b-instruct-q5_K_M"
-    model_llama_3b_q6 = "llama3.2:3b-instruct-q6_K"
-    model_llama_3b_q8 = "llama3.2:1b-instruct-q8_0"
-    model_llama_3b_full = "llama3.2:1b-instruct-fp16"
-    model_qwen_1_7b_q4 = "qwen3:1.7b-q4_K_M"
-    model_qwen_4b_q4 = "qwen3:4b-q4_K_M"
-    model_qwen_8b_q4 = "qwen3:8b-q4_K_M"
-    model_mistral_7b_q4 = "mistral:7b-instruct-v0.3-q4_K_M"
-    model_mistral_7b_q5 = "mistral:7b-instruct-q5_K_M"
-    model_mistral_nemo_q4 = "mistral-nemo:12b-instruct-2407-q4_K_M"
-    model_mistral_nemo_q2 = "mistral-nemo:12b-instruct-2407-q2_K"
-    model_gemma = "gemma3:4b"
-    model_deep_seek = "deepseek-r1:7b-qwen-distill-q4_K_M"
-    model_llama_cpp = "llama-3.2-3b-instruct"  # For llama-cpp-python
-    model_granite = "granite3.2:8b-instruct-q4_K_M"
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    )
 
-    models = [
-            # model_llama_3b_q4,model_llama_3b_q5,model_llama_3b_q6, 
-            model_llama_3b_q8, model_llama_3b_full,
-            model_qwen_8b_q4,
-            model_qwen_1_7b_q4, model_qwen_4b_q4,
-            model_mistral_7b_q4,model_mistral_7b_q5,
-            model_mistral_nemo_q4,
-            model_mistral_nemo_q2,
-            model_gemma,
-            model_deep_seek,
-            model_granite
-    ]
+    # import debugpy
+    # debugpy.listen(("0.0.0.0", 5678))
+    # print("⏳ Debugger listening on port 5678...")
+    # # Uncomment to make app wait for debugger before continuing:
+    # debugpy.wait_for_client()
+    # print("✅ Ready for debugger attachment")
 
-    model_name_map = {
-        model_llama_3b_q4: "llama_q4_K_M",
-        model_llama_3b_q5: "llama_q5_K_M",
-        model_llama_3b_q6: "llama3_q6_K",
-        model_llama_3b_q8: "llama3_q8_K",
-        model_llama_3b_full: "llama3_full",
-        model_qwen_1_7b_q4: "qwen3_1_7b_q4_K_M",
-        model_qwen_4b_q4: "qwen3_4b_q4_K_M",
-        model_qwen_8b_q4: "qwen3_8b_q4_K_M",
-        model_mistral_7b_q4: "mistral_7b_q4_K_M",
-        model_mistral_7b_q5: "mistral_7b_q5_K_M",
-        model_mistral_nemo_q2: "mistral_nemo_q2_K",
-        model_mistral_nemo_q4: "mistral_nemo_q4_K_M",
-        model_deep_seek: "deep_seek_q4_K_M",
-        model_gemma: "gemma3:4b",
-        model_llama_cpp: "llama_cpp",
-        model_granite: "granite"
-        
-    }
 
     job1 = {
         "title": "AI Consultant (all genders)",
@@ -1512,8 +1174,6 @@ if __name__ == "__main__":
         """
     }
     
-    jobs = [job1, job_bad_fit, job_lang, job_no_lang, job_no_lang2, job_no_acad, job_no_pref]
-    
     job_to_string_map = {
         job1["title"]: "job1",
         job_bad_fit["title"]: "job_bad_fit",
@@ -1523,6 +1183,8 @@ if __name__ == "__main__":
         job_no_acad["title"]: "job_no_acad",
         job_no_pref["title"]: "job_no_pref"
     }
+        
+    jobs = [job1, job_bad_fit, job_lang, job_no_lang, job_no_lang2, job_no_acad, job_no_pref]
 
     cv = """
             David Gasser CURRICULUM VITAE
@@ -1575,7 +1237,7 @@ if __name__ == "__main__":
             PADI Dive Master: Leading, managing, coordinating dives, and assisting in teaching with up to 12 divers.
             Network Administrator - Dormitory: Managed network infrastructure for ~40 residents.
             Mentor incoming exchange students: Supporting incoming students with educational and general questions.
-"""
+        """
     preferences = """
                 I am looking for competetive and somewhat challenging jobs in the AI sphere. My favorite position would be as an AI engineer,
                 or something related to it. I am most interested in AI, ML and would love a job that deals with these topics on a daily level.
@@ -1585,60 +1247,36 @@ if __name__ == "__main__":
                 as they provide a good working athmosphere, great pay, and good benefits. NO FULL STACK ROLES.
                 """
 
-    # Test with llama-cpp-python
-    # output_lama_cpp = Path("lama_cpp")
-    # os.makedirs(output_lama_cpp, exist_ok=True)
-    # for job in jobs: 
-    #     result = score_separately(job, cv, preferences, model_llama_cpp)
-    #     print(result)
-    #     output_file = output_lama_cpp / f"{job_to_string_map[job['title']]}.txt"
-    #     result = json.loads(result)
-    #     with open(output_file, "w") as f: 
-    #         json.dump(result, f, indent=2)
-    
-    
-    output_folder_scoring = Path("output/scoring")     
-    output_folder_summarize = Path("output/summarize_example_info_first")      
-    output_folder_score_on_summary = Path("output/score_on_summary")
-    output_folder_sum_with_score = Path("output/score_with_summary")
-    output_folder_separate = Path("output/separate_scoring")
-    output_folder_extract_separate_then_score = Path("output/extract_jobs")
-    output_comparison = Path("output/comparison")
-    output_summary_cv = Path("output/CV_summary")
-    output_summary_freeform_scoring = Path("output/scoring_explained_json_scoring")
-    output_folders = [output_folder_scoring, output_folder_summarize, output_folder_score_on_summary, output_summary_freeform_scoring,
-                      output_folder_sum_with_score, output_folder_separate, output_folder_extract_separate_then_score, output_comparison, output_summary_cv]
-    ## Selection
-    for model in models: 
-        for job in jobs: 
-            summary = None
-            ## testing
-            def test_functions(function, output_path): 
-                start_time = time.time()
-                # response = asyncio.run(function(**{"job":job, "cv":cv, "preferences":preferences, "model":model, "summary":summary,
-                #                        "comparison_model": model, "summarization_model": model_llama_3b_q6}))
-                response = function(**{"job":job, "cv":cv, "preferences":preferences, "summary_model":model, "model": model, "reasoning_model":model_qwen_8b_q4,
-                                       "comparison_model": model, "summarization_model": model_llama_3b_q6})
-                print(response)
-                print("-"*60)
-                print(f"Response time Score Job: {(time.time()-start_time):.3f}, Model: {model}, Job: {job_to_string_map[job['title']]}")
-                print("-"*60)
+    # Run evaluation
+    host = "http://llama-cpp-server:11434"
+    output_path = Path("output/llama-cpp")
+    os.makedirs(output_path, exist_ok=True)
+    config = LlamaCppConfig(host=host)
+
+    print(f"Connecting to llama.cpp server at {host}...")
+
+    with CandidateEvaluator(config) as evaluator:
+
+        for sample_job in jobs:
+            
+            if not evaluator.health_check():
+                print("ERROR: llama.cpp server is not available")
+                print("Make sure the server is running: docker-compose up -d")
+                exit(1)
+
+            print("Server is healthy. Starting evaluation...\n")
+        
+            result = evaluator.evaluate(sample_job, cv, preferences)
+
+            if result.success:
+                print("=" * 60)
+                print(f"Evaluation completed in {result.duration_seconds:.2f}s")
+                print("=" * 60)
+                print(result.assessment.model_dump_json(indent=2, by_alias=True))
                 
-                with open(output_path, "w") as f: 
-                    f.write(f"Response time: {(time.time()-start_time):.3f}\n\n{response}")
-                return response
-            
-            
-            model_folder = model_name_map[model]
-            [os.makedirs(out_folder / model_folder, exist_ok=True) for out_folder in output_folders]
-            output_file = f"{model_folder}/{job_to_string_map[job['title']]}.txt"
-            
-            # test_functions(score_job, output_folder_scoring / output_file)
-            summary = test_functions(summarize_cv_and_jd, output_folder_summarize / output_file)
-            #test_functions(score_on_summary, output_folder_score_on_summary / output_file)
-            # test_functions(score_with_summary, output_folder_sum_with_score / output_file)
-            # test_functions(score_separately, output_folder_separate / output_file)
-            #test_functions(extract_separate_then_score, output_folder_extract_separate_then_score /output_file)
-            # test_functions(compare, output_comparison / output_file)
-            # test_functions(freeform_scoring, output_summary_freeform_scoring / output_file)
-            #test_functions(summarize_cv, output_summary_cv / output_file)
+                with open(f"{output_path / job_to_string_map[sample_job['title']]}.txt", mode="w") as f: 
+                    f.write(f"Evaluation time: {result.duration_seconds:.4f}s \n\n {result.assessment.model_dump_json(indent=2, by_alias=True)}")
+                   #f.write(f"Evaluation time: {result.duration_seconds:.4f}s \n\n {result}")
+            else:
+                print(f"Evaluation failed: {result.error}")
+                exit(1)

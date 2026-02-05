@@ -2,6 +2,7 @@
 *.log
 /data
 /uploads
+/models
 /output_ollama
 /output
 /output_llama_cpp

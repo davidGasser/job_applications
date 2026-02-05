@@ -272,6 +272,10 @@ class LinkedInScraper:
     def _scrape_page(self, jobs_data: Union[Queue,List[dict]], location: str, page_num: int):
         """Extract job listings from current page."""
         
+        ######################################
+        # First wait until the website loads
+        ######################################
+        
         # wait until the page is loaded and check how many jobs there are.
         WebDriverWait(self.driver, 100).until(
             EC.presence_of_element_located((By.CSS_SELECTOR, 'li.scaffold-layout__list-item'))
@@ -286,6 +290,10 @@ class LinkedInScraper:
         self.driver.execute_script("arguments[0].scrollTo(0, arguments[0].scrollHeight);", job_list_container)
         time.sleep(1)  # Wait for any lazy-loaded items to appear
    
+   
+        #########################################################################
+        # Next task: Navigate trough the pages and call the extraction function
+        #########################################################################
         # check what data type job_data has
         is_list = True if type(jobs_data) == list else False
         old_title = None
@@ -308,18 +316,25 @@ class LinkedInScraper:
             # skip first job as it is already loaded and there is no old title
             # introduced this block to have better loading behavior and make sure that changes occured
             # also leads to better error handling
-            if idx != 1: 
-                WebDriverWait(self.driver, 5).until(
-                    lambda driver: driver.find_element(By.CSS_SELECTOR, 'h1.t-24').text == old_title
-                )
-                item.click()
-                time.sleep(0.1)
-                item.click()
-                WebDriverWait(self.driver, 5).until(
-                    lambda driver: driver.find_element(By.CSS_SELECTOR, 'h1.t-24').text != old_title
-                )
+            try: 
+                if idx != 1: 
+                    WebDriverWait(self.driver, 5).until(
+                        lambda driver: driver.find_element(By.CSS_SELECTOR, 'h1.t-24').text == old_title
+                    )
+                    item.click()
+                    time.sleep(0.1)
+                    item.click()
+                    WebDriverWait(self.driver, 5).until(
+                        lambda driver: driver.find_element(By.CSS_SELECTOR, 'h1.t-24').text != old_title
+                    )
+                    # title has changed update for next iter
+                old_title = self.driver.find_element(By.CSS_SELECTOR, 'h1.t-24').text   
+            except: 
+                continue
             
+            ###################
             # extract info
+            ###################
             try: 
                 data = self.extract_info()
             except Exception as e:
@@ -336,8 +351,7 @@ class LinkedInScraper:
                 jobs_data.put(data)
                 logger.info(f"[{location}] Job {idx}/{len(items)}: {data['title']} @ {data['company']} (queue size: ~{jobs_data.qsize()})")
 
-            self.total_jobs_scraped += 1
-            old_title = data["title"]   
+            self.total_jobs_scraped += 1   
             
     
     def scrape_jobs(self, queue:Queue=None) -> Union[None,pd.DataFrame]:

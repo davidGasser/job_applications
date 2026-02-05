@@ -25,7 +25,7 @@ def extract_text_from_cv(path_pdf: Path, model="qwen3-vl:2b"):
     # Extracts the CV's content from the image using Ollama vision model.
 
     # Create Ollama client with host from environment variable (defaults to http://localhost:11430)
-    ollama_host = os.getenv('OLLAMA_HOST', 'http://localhost:11430')
+    ollama_host = os.getenv('OLLAMA_HOST', 'http://localhost:11434')
     client = ollama.Client(host=ollama_host)
 
     images = _convert_cv_to_image(path_pdf)
