@@ -1,66 +1,67 @@
 services:
-  # db:
-  #   image: postgres:16-alpine
-  #   restart: always
-  #   environment:
-  #     - POSTGRES_USER=user
-  #     - POSTGRES_PASSWORD=password
-  #     - POSTGRES_DB=jobs
-  #   volumes:
-  #     - postgres_data:/var/lib/postgresql/data/
-  #   ports:
-  #     - '5433:5432'
-  # app:
-  #   build: 
-  #     context: .
-  #     dockerfile: Dockerfile
-  #   restart: always
-  #   ports:
-  #     - '5000:5000'
-  #     - '5678:5678'
-  #   volumes:
-  #     - .:/app
-  #   depends_on:
-  #     - db
-  #     - selenium
-  #     # - llamacpp
-  #     - ollama
-  #   env_file:
-  #     - .env
-  #   environment:
-  #     - TZ=Europe/Berlin
-  #     - DATABASE_URL=postgresql://user:password@db:5432/jobs
-  #     - FLASK_APP=src/main.py
-  #     - FLASK_DEBUG=1
-  #     - ENABLE_DEBUGPY=1
-  #     # - LLAMACPP_HOST=http://llamacpp:11434
-  #     - OLLAMA_HOST=http://ollama:11434
-  #   command: python -Xfrozen_modules=off src/main.py
+  db:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=jobs
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    ports:
+      - '5433:5432'
 
-  # selenium:
-  #   image: selenium/standalone-chrome:latest
-  #   shm_size: 2g
-  #   restart: always
-  #   ports:
-  #     - '4444:4444'
-
-  dev:
-    build: .
-    container_name: dev
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - '5000:5000'
+      - '5678:5678'
     volumes:
       - .:/app
-    ports:
-      - "5678:5678"
-    working_dir: /app
-    stdin_open: true
-    tty: true
-    command: /bin/bash
     depends_on:
+      - db
+      - selenium
       - llama-cpp-server
       - ollama
+    env_file:
+      - .env
     environment:
+      - TZ=Europe/Berlin
+      - DATABASE_URL=postgresql://user:password@db:5432/jobs
+      - FLASK_APP=src/main.py
+      - FLASK_DEBUG=1
+      - ENABLE_DEBUGPY=1
       - LLAMA_CPP_HOST=http://llama-cpp-server:11434
       - OLLAMA_HOST=http://ollama:11434
+    command: python -Xfrozen_modules=off src/main.py
+
+  selenium:
+    image: selenium/standalone-chrome:latest
+    shm_size: 2g
+    restart: always
+    ports:
+      - '4444:4444'
+
+  # dev:
+  #   build: .
+  #   container_name: dev
+  #   volumes:
+  #     - .:/app
+  #   ports:
+  #     - "5678:5678"
+  #   working_dir: /app
+  #   stdin_open: true
+  #   tty: true
+  #   command: /bin/bash
+  #   depends_on:
+  #     - llama-cpp-server
+  #     - ollama
+  #   environment:
+  #     - LLAMA_CPP_HOST=http://llama-cpp-server:11434
+  #     - OLLAMA_HOST=http://ollama:11434
 
   ollama:
     image: ollama/ollama:latest
@@ -82,11 +83,14 @@ services:
               count: all
               capabilities: [gpu]
     restart: unless-stopped
+    # Fix for NVIDIA driver mismatch - restart container runtime
+    # If you still get errors, temporarily comment out the deploy section above
 
   llama-cpp-server:
     image: ghcr.io/ggml-org/llama.cpp:server-cuda
     container_name: llama-cpp-server
-    
+    restart: unless-stopped  # Helps with NVIDIA driver mismatch issues
+
     deploy:
       resources:
         reservations:
@@ -94,17 +98,17 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
-    
+
     ports:
       - "11434:11434"
-    
+
     volumes:
       - ./models:/models:ro
-    
+
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility
-    
+
     command: >
       --host 0.0.0.0
       --port 11434
@@ -113,22 +117,20 @@ services:
       --n-gpu-layers -1
       --jinja
       --chat-template chatml
-      --flash-attn on 
+      --flash-attn on
       --temp 0.6
-      --top-k 20 
-      --top-p 0.9 
+      --top-k 20
+      --top-p 0.9
       --min-p 0
       --repeat-penalty 1.1
       --metrics
-    
+
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:11434/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 60s
-    
-    restart: unless-stopped
 
 
 volumes:

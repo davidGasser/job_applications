@@ -323,6 +323,25 @@
                             </div>
                         </div>
 
+                        <div class="form-group">
+                            <label for="schedule-timezone">Timezone</label>
+                            <select id="schedule-timezone">
+                                <option value="UTC">UTC (Coordinated Universal Time)</option>
+                                <option value="Europe/Berlin">Europe/Berlin (CET/CEST)</option>
+                                <option value="Europe/London">Europe/London (GMT/BST)</option>
+                                <option value="Europe/Paris">Europe/Paris (CET/CEST)</option>
+                                <option value="Europe/Zurich">Europe/Zurich (CET/CEST)</option>
+                                <option value="America/New_York">America/New_York (EST/EDT)</option>
+                                <option value="America/Chicago">America/Chicago (CST/CDT)</option>
+                                <option value="America/Denver">America/Denver (MST/MDT)</option>
+                                <option value="America/Los_Angeles">America/Los_Angeles (PST/PDT)</option>
+                                <option value="Asia/Tokyo">Asia/Tokyo (JST)</option>
+                                <option value="Asia/Shanghai">Asia/Shanghai (CST)</option>
+                                <option value="Asia/Singapore">Asia/Singapore (SGT)</option>
+                                <option value="Australia/Sydney">Australia/Sydney (AEDT/AEST)</option>
+                            </select>
+                        </div>
+
                         <div class="form-group" id="schedule-day-of-week-group" style="display: none;">
                             <label for="schedule-day-of-week">Day of Week</label>
                             <select id="schedule-day-of-week">
@@ -613,6 +632,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('schedule-minute').value = criteria.schedule_minute || 0;
         document.getElementById('schedule-day-of-week').value = criteria.schedule_day_of_week || 0;
         document.getElementById('schedule-day-of-month').value = criteria.schedule_day_of_month || 1;
+        document.getElementById('schedule-timezone').value = criteria.schedule_timezone || 'UTC';
 
         scheduleOptions.style.display = criteria.schedule_enabled ? 'block' : 'none';
         updateScheduleFrequencyUI();
@@ -652,19 +672,20 @@ document.addEventListener('DOMContentLoaded', () => {
             if (criteria.schedule_enabled) {
                 const hour = String(criteria.schedule_hour || 0).padStart(2, '0');
                 const minute = String(criteria.schedule_minute || 0).padStart(2, '0');
+                const timezone = criteria.schedule_timezone || 'UTC';
                 let scheduleText = '';
 
                 if (criteria.date_posted === 'past 24 hours') {
-                    scheduleText = `Daily at ${hour}:${minute}`;
+                    scheduleText = `Daily at ${hour}:${minute} ${timezone}`;
                 } else if (criteria.date_posted === 'past week') {
                     const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
                     const dayName = days[criteria.schedule_day_of_week || 0];
-                    scheduleText = `Weekly on ${dayName} at ${hour}:${minute}`;
+                    scheduleText = `Weekly on ${dayName} at ${hour}:${minute} ${timezone}`;
                 } else if (criteria.date_posted === 'past month') {
                     const day = criteria.schedule_day_of_month || 1;
-                    scheduleText = `Monthly on day ${day} at ${hour}:${minute}`;
+                    scheduleText = `Monthly on day ${day} at ${hour}:${minute} ${timezone}`;
                 } else {
-                    scheduleText = `Scheduled at ${hour}:${minute}`;
+                    scheduleText = `Scheduled at ${hour}:${minute} ${timezone}`;
                 }
 
                 const lastRun = criteria.last_run ? new Date(criteria.last_run).toLocaleString() : 'Never';
@@ -731,7 +752,8 @@ document.addEventListener('DOMContentLoaded', () => {
             schedule_hour: scheduleEnabledCheckbox.checked ? parseInt(document.getElementById('schedule-hour').value) || null : null,
             schedule_minute: scheduleEnabledCheckbox.checked ? parseInt(document.getElementById('schedule-minute').value) || 0 : null,
             schedule_day_of_week: scheduleEnabledCheckbox.checked ? parseInt(document.getElementById('schedule-day-of-week').value) || null : null,
-            schedule_day_of_month: scheduleEnabledCheckbox.checked ? parseInt(document.getElementById('schedule-day-of-month').value) || null : null
+            schedule_day_of_month: scheduleEnabledCheckbox.checked ? parseInt(document.getElementById('schedule-day-of-month').value) || null : null,
+            schedule_timezone: scheduleEnabledCheckbox.checked ? document.getElementById('schedule-timezone').value : 'UTC'
         };
 
         const url = id ? `/search_criteria/${id}` : '/search_criteria';

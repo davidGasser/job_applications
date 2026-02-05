@@ -59,33 +59,40 @@ def sync_scheduler_jobs(app=None, run_scraping_task_func=None):
 
             job_id = f"scrape_{criteria.id}"
 
+            # Get timezone (default to UTC if not set)
+            timezone = criteria.schedule_timezone or 'UTC'
+
             # Determine frequency based on date_posted
             if criteria.date_posted == 'past 24 hours':
                 # Daily schedule
                 trigger = CronTrigger(
                     hour=criteria.schedule_hour,
-                    minute=criteria.schedule_minute or 0
+                    minute=criteria.schedule_minute or 0,
+                    timezone=timezone
                 )
             elif criteria.date_posted == 'past week':
                 # Weekly schedule
                 trigger = CronTrigger(
                     day_of_week=criteria.schedule_day_of_week or 0,  # Default to Monday
                     hour=criteria.schedule_hour,
-                    minute=criteria.schedule_minute or 0
+                    minute=criteria.schedule_minute or 0,
+                    timezone=timezone
                 )
             elif criteria.date_posted == 'past month':
                 # Monthly schedule
                 trigger = CronTrigger(
                     day=criteria.schedule_day_of_month or 1,  # Default to 1st of month
                     hour=criteria.schedule_hour,
-                    minute=criteria.schedule_minute or 0
+                    minute=criteria.schedule_minute or 0,
+                    timezone=timezone
                 )
             else:
                 # Default to weekly if date_posted not specified
                 trigger = CronTrigger(
                     day_of_week=criteria.schedule_day_of_week or 0,
                     hour=criteria.schedule_hour,
-                    minute=criteria.schedule_minute or 0
+                    minute=criteria.schedule_minute or 0,
+                    timezone=timezone
                 )
 
             # Only add the job if we have the scraping function
