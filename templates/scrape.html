@@ -342,22 +342,9 @@
                             </select>
                         </div>
 
-                        <div class="form-group" id="schedule-day-of-week-group" style="display: none;">
-                            <label for="schedule-day-of-week">Day of Week</label>
-                            <select id="schedule-day-of-week">
-                                <option value="0">Monday</option>
-                                <option value="1">Tuesday</option>
-                                <option value="2">Wednesday</option>
-                                <option value="3">Thursday</option>
-                                <option value="4">Friday</option>
-                                <option value="5">Saturday</option>
-                                <option value="6">Sunday</option>
-                            </select>
-                        </div>
-
-                        <div class="form-group" id="schedule-day-of-month-group" style="display: none;">
-                            <label for="schedule-day-of-month">Day of Month</label>
-                            <input type="number" id="schedule-day-of-month" min="1" max="31" value="1" placeholder="1-31">
+                        <div class="form-group">
+                            <label for="schedule-interval-hours">Repeat Every (hours)</label>
+                            <input type="number" id="schedule-interval-hours" min="1" max="720" value="24" placeholder="24">
                         </div>
 
                         <div id="schedule-frequency-hint" style="font-size: 0.85rem; color: var(--text-secondary); padding: 0.75rem; background-color: var(--primary-light); border-radius: 8px; margin-top: 0.5rem;"></div>
@@ -548,9 +535,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Scheduling UI logic
     const scheduleEnabledCheckbox = document.getElementById('schedule-enabled');
     const scheduleOptions = document.getElementById('schedule-options');
-    const datePostedSelect = document.getElementById('date_posted');
-    const scheduleDayOfWeekGroup = document.getElementById('schedule-day-of-week-group');
-    const scheduleDayOfMonthGroup = document.getElementById('schedule-day-of-month-group');
+    const scheduleIntervalHours = document.getElementById('schedule-interval-hours');
     const scheduleFrequencyHint = document.getElementById('schedule-frequency-hint');
 
     scheduleEnabledCheckbox.addEventListener('change', () => {
@@ -558,27 +543,23 @@ document.addEventListener('DOMContentLoaded', () => {
         updateScheduleFrequencyUI();
     });
 
-    datePostedSelect.addEventListener('change', updateScheduleFrequencyUI);
+    scheduleIntervalHours.addEventListener('input', updateScheduleFrequencyUI);
 
     function updateScheduleFrequencyUI() {
         if (!scheduleEnabledCheckbox.checked) return;
 
-        const datePosted = datePostedSelect.value;
+        const hours = parseInt(scheduleIntervalHours.value) || 24;
+        const scheduleHour = document.getElementById('schedule-hour').value;
+        const scheduleMinute = document.getElementById('schedule-minute').value || '0';
+        const timeStr = scheduleHour ? `${String(scheduleHour).padStart(2, '0')}:${String(scheduleMinute).padStart(2, '0')}` : '(set time above)';
 
-        // Hide both by default
-        scheduleDayOfWeekGroup.style.display = 'none';
-        scheduleDayOfMonthGroup.style.display = 'none';
-
-        if (datePosted === 'past 24 hours') {
-            scheduleFrequencyHint.textContent = 'This scraper will run daily at the specified time.';
-        } else if (datePosted === 'past week') {
-            scheduleDayOfWeekGroup.style.display = 'block';
-            scheduleFrequencyHint.textContent = 'This scraper will run weekly on the specified day and time.';
-        } else if (datePosted === 'past month') {
-            scheduleDayOfMonthGroup.style.display = 'block';
-            scheduleFrequencyHint.textContent = 'This scraper will run monthly on the specified day and time.';
+        if (hours >= 24 && hours % 24 === 0) {
+            const days = hours / 24;
+            scheduleFrequencyHint.textContent = days === 1
+                ? `This scraper will run daily, starting at ${timeStr}.`
+                : `This scraper will run every ${days} days, starting at ${timeStr}.`;
         } else {
-            scheduleFrequencyHint.textContent = 'Select a "Date Posted" filter to configure scheduling frequency.';
+            scheduleFrequencyHint.textContent = `This scraper will run every ${hours} hour${hours !== 1 ? 's' : ''}, starting at ${timeStr}.`;
         }
     }
 
@@ -630,8 +611,7 @@ document.addEventListener('DOMContentLoaded', () => {
         scheduleEnabledCheckbox.checked = criteria.schedule_enabled || false;
         document.getElementById('schedule-hour').value = criteria.schedule_hour || '';
         document.getElementById('schedule-minute').value = criteria.schedule_minute || 0;
-        document.getElementById('schedule-day-of-week').value = criteria.schedule_day_of_week || 0;
-        document.getElementById('schedule-day-of-month').value = criteria.schedule_day_of_month || 1;
+        document.getElementById('schedule-interval-hours').value = criteria.schedule_interval_hours || 24;
         document.getElementById('schedule-timezone').value = criteria.schedule_timezone || 'UTC';
 
         scheduleOptions.style.display = criteria.schedule_enabled ? 'block' : 'none';
@@ -673,19 +653,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 const hour = String(criteria.schedule_hour || 0).padStart(2, '0');
                 const minute = String(criteria.schedule_minute || 0).padStart(2, '0');
                 const timezone = criteria.schedule_timezone || 'UTC';
+                const intervalHours = criteria.schedule_interval_hours || 24;
                 let scheduleText = '';
 
-                if (criteria.date_posted === 'past 24 hours') {
-                    scheduleText = `Daily at ${hour}:${minute} ${timezone}`;
-                } else if (criteria.date_posted === 'past week') {
-                    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-                    const dayName = days[criteria.schedule_day_of_week || 0];
-                    scheduleText = `Weekly on ${dayName} at ${hour}:${minute} ${timezone}`;
-                } else if (criteria.date_posted === 'past month') {
-                    const day = criteria.schedule_day_of_month || 1;
-                    scheduleText = `Monthly on day ${day} at ${hour}:${minute} ${timezone}`;
+                if (intervalHours >= 24 && intervalHours % 24 === 0) {
+                    const days = intervalHours / 24;
+                    scheduleText = days === 1
+                        ? `Daily at ${hour}:${minute} ${timezone}`
+                        : `Every ${days} days starting at ${hour}:${minute} ${timezone}`;
                 } else {
-                    scheduleText = `Scheduled at ${hour}:${minute} ${timezone}`;
+                    scheduleText = `Every ${intervalHours}h starting at ${hour}:${minute} ${timezone}`;
                 }
 
                 const lastRun = criteria.last_run ? new Date(criteria.last_run).toLocaleString() : 'Never';
@@ -751,8 +728,7 @@ document.addEventListener('DOMContentLoaded', () => {
             schedule_enabled: scheduleEnabledCheckbox.checked,
             schedule_hour: scheduleEnabledCheckbox.checked ? parseInt(document.getElementById('schedule-hour').value) || null : null,
             schedule_minute: scheduleEnabledCheckbox.checked ? parseInt(document.getElementById('schedule-minute').value) || 0 : null,
-            schedule_day_of_week: scheduleEnabledCheckbox.checked ? parseInt(document.getElementById('schedule-day-of-week').value) || null : null,
-            schedule_day_of_month: scheduleEnabledCheckbox.checked ? parseInt(document.getElementById('schedule-day-of-month').value) || null : null,
+            schedule_interval_hours: scheduleEnabledCheckbox.checked ? parseInt(document.getElementById('schedule-interval-hours').value) || 24 : 24,
             schedule_timezone: scheduleEnabledCheckbox.checked ? document.getElementById('schedule-timezone').value : 'UTC'
         };
 

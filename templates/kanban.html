@@ -1953,6 +1953,30 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Drag and Drop
+
+    // Helper to update column job-count badges and empty-column placeholders
+    function updateColumnCounts() {
+        document.querySelectorAll('.kanban-column:not(.kanban-interviewing-wrapper)').forEach(column => {
+            const cardsContainer = column.querySelector('.kanban-cards');
+            const cards = cardsContainer.querySelectorAll('.kanban-card');
+            const countBadge = column.querySelector('.job-count');
+            if (countBadge) {
+                countBadge.textContent = cards.length;
+            }
+
+            // Handle empty-column placeholder
+            const emptyPlaceholder = cardsContainer.querySelector('.empty-column');
+            if (cards.length === 0 && !emptyPlaceholder) {
+                const placeholder = document.createElement('div');
+                placeholder.className = 'empty-column';
+                placeholder.textContent = 'No jobs in this stage';
+                cardsContainer.appendChild(placeholder);
+            } else if (cards.length > 0 && emptyPlaceholder) {
+                emptyPlaceholder.remove();
+            }
+        });
+    }
+
     document.querySelectorAll('.kanban-card').forEach(addCardEventListeners);
 
     // Handle regular status columns
@@ -1990,13 +2014,16 @@ document.addEventListener('DOMContentLoaded', () => {
             .then(response => response.json())
             .then(data => {
                 if (data.status === 'success') {
-                    // If moving from Interviewing to another status, reload to update columns
+                    // If moving from Interviewing to another status, reload to update interview columns
                     if (oldInterviewStep) {
                         sessionStorage.setItem('kanbanScrollX', kanbanBoard.scrollLeft);
                         sessionStorage.setItem('kanbanScrollY', kanbanBoard.scrollTop);
                         location.reload();
                     } else {
-                        console.log('Job status updated successfully');
+                        // Clear interview step data attribute since card is no longer in Interviewing
+                        dragging.removeAttribute('data-interview-step');
+                        // Update counts and empty placeholders for all regular columns
+                        updateColumnCounts();
                     }
                 } else {
                     console.error('Failed to update job status:', data);
@@ -2649,7 +2676,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const scrollZoneTop = document.getElementById('scroll-zone-top');
     const scrollZoneBottom = document.getElementById('scroll-zone-bottom');
 
-    let autoScrollEnabled = true; // Toggle with spacebar
+    let autoScrollEnabled = sessionStorage.getItem('kanbanAutoScroll') !== 'false'; // Persist across reloads
     let isDragging = false; // Track drag state
 
     // Restore scroll position after reload
@@ -2685,10 +2712,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const autoScrollTip = document.getElementById('auto-scroll-tip');
     let tipHideTimeout;
 
+    // Initialize tip visual to match persisted auto-scroll state
+    if (!autoScrollEnabled) {
+        autoScrollTip.classList.add('disabled');
+        autoScrollTip.querySelector('span').textContent = 'Auto-scroll disabled';
+    }
+
     document.addEventListener('keydown', (e) => {
         if (e.code === 'Space' && !e.target.matches('input, textarea')) {
             e.preventDefault();
             autoScrollEnabled = !autoScrollEnabled;
+            sessionStorage.setItem('kanbanAutoScroll', autoScrollEnabled);
             if (!autoScrollEnabled) {
                 stopAutoScroll();
             }

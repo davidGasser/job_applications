@@ -2,7 +2,7 @@ import logging
 import atexit
 from datetime import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.interval import IntervalTrigger
 from models import db, SearchCriteria
 
 # Initialize scheduler
@@ -11,6 +11,10 @@ scheduler.start()
 
 # Shut down the scheduler when exiting the app
 atexit.register(lambda: scheduler.shutdown())
+
+# Module-level references, set once from main.py on startup
+_app = None
+_run_scraping_task_func = None
 
 def run_scheduled_scrape(criteria_id, app, run_scraping_task_func):
     """Function called by APScheduler to run a scheduled scrape."""
@@ -39,14 +43,29 @@ def run_scheduled_scrape(criteria_id, app, run_scraping_task_func):
             logging.error(f"Error in scheduled scrape for criteria {criteria_id}: {e}")
 
 def sync_scheduler_jobs(app=None, run_scraping_task_func=None):
-    """Synchronize APScheduler jobs with enabled SearchCriteria in database."""
-    # Import here to avoid circular imports
-    from flask import current_app
+    """Synchronize APScheduler jobs with enabled SearchCriteria in database.
 
-    if app is None:
-        app = current_app._get_current_object()
+    On first call (from main.py), pass app and run_scraping_task_func to store them.
+    Subsequent calls (from routes) can omit these args and the stored references are used.
+    """
+    global _app, _run_scraping_task_func
 
-    with app.app_context():
+    # Store references if provided (first call from main.py)
+    if app is not None:
+        _app = app
+    if run_scraping_task_func is not None:
+        _run_scraping_task_func = run_scraping_task_func
+
+    # Use stored references if args not provided (calls from routes)
+    effective_app = app or _app
+    effective_func = run_scraping_task_func or _run_scraping_task_func
+
+    if effective_app is None:
+        # Fallback to current_app if no stored app
+        from flask import current_app
+        effective_app = current_app._get_current_object()
+
+    with effective_app.app_context():
         # Remove all existing jobs
         scheduler.remove_all_jobs()
 
@@ -62,47 +81,28 @@ def sync_scheduler_jobs(app=None, run_scraping_task_func=None):
             # Get timezone (default to UTC if not set)
             timezone = criteria.schedule_timezone or 'UTC'
 
-            # Determine frequency based on date_posted
-            if criteria.date_posted == 'past 24 hours':
-                # Daily schedule
-                trigger = CronTrigger(
+            # Use interval-based scheduling
+            interval_hours = criteria.schedule_interval_hours or 24
+
+            trigger = IntervalTrigger(
+                hours=interval_hours,
+                timezone=timezone,
+                start_date=datetime.now().replace(
                     hour=criteria.schedule_hour,
                     minute=criteria.schedule_minute or 0,
-                    timezone=timezone
+                    second=0,
+                    microsecond=0
                 )
-            elif criteria.date_posted == 'past week':
-                # Weekly schedule
-                trigger = CronTrigger(
-                    day_of_week=criteria.schedule_day_of_week or 0,  # Default to Monday
-                    hour=criteria.schedule_hour,
-                    minute=criteria.schedule_minute or 0,
-                    timezone=timezone
-                )
-            elif criteria.date_posted == 'past month':
-                # Monthly schedule
-                trigger = CronTrigger(
-                    day=criteria.schedule_day_of_month or 1,  # Default to 1st of month
-                    hour=criteria.schedule_hour,
-                    minute=criteria.schedule_minute or 0,
-                    timezone=timezone
-                )
-            else:
-                # Default to weekly if date_posted not specified
-                trigger = CronTrigger(
-                    day_of_week=criteria.schedule_day_of_week or 0,
-                    hour=criteria.schedule_hour,
-                    minute=criteria.schedule_minute or 0,
-                    timezone=timezone
-                )
+            )
 
             # Only add the job if we have the scraping function
-            if run_scraping_task_func:
+            if effective_func:
                 scheduler.add_job(
                     func=run_scheduled_scrape,
                     trigger=trigger,
-                    args=[criteria.id, app, run_scraping_task_func],
+                    args=[criteria.id, effective_app, effective_func],
                     id=job_id,
                     name=f"Scrape: {criteria.keywords}",
                     replace_existing=True
                 )
-                logging.info(f"Scheduled job added: {criteria.keywords} - {trigger}")
+                logging.info(f"Scheduled job added: {criteria.keywords} - every {interval_hours}h starting at {criteria.schedule_hour:02d}:{(criteria.schedule_minute or 0):02d} {timezone}")

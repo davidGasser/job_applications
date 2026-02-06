@@ -120,6 +120,16 @@ def home():
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
+
+        # Add schedule_interval_hours column if missing (db.create_all won't add to existing tables)
+        from sqlalchemy import inspect, text
+        inspector = inspect(db.engine)
+        columns = [col['name'] for col in inspector.get_columns('search_criteria')]
+        if 'schedule_interval_hours' not in columns:
+            db.session.execute(text('ALTER TABLE search_criteria ADD COLUMN schedule_interval_hours INTEGER DEFAULT 24'))
+            db.session.commit()
+            logging.info("Added schedule_interval_hours column to search_criteria")
+
         # Sync scheduled jobs on startup
         sync_scheduler_jobs(app, run_scraping_task_func)
         logging.info("Scheduler initialized and jobs synced")

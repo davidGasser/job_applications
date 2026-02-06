@@ -39,7 +39,9 @@ def create_search_criteria():
             schedule_hour=data.get('schedule_hour'),
             schedule_minute=data.get('schedule_minute', 0),
             schedule_day_of_week=data.get('schedule_day_of_week'),
-            schedule_day_of_month=data.get('schedule_day_of_month')
+            schedule_day_of_month=data.get('schedule_day_of_month'),
+            schedule_interval_hours=data.get('schedule_interval_hours', 24),
+            schedule_timezone=data.get('schedule_timezone', 'UTC')
         )
         db.session.add(new_criteria)
         db.session.commit()
@@ -71,6 +73,8 @@ def get_search_criteria(criteria_id):
             'schedule_minute': criteria.schedule_minute,
             'schedule_day_of_week': criteria.schedule_day_of_week,
             'schedule_day_of_month': criteria.schedule_day_of_month,
+            'schedule_interval_hours': criteria.schedule_interval_hours,
+            'schedule_timezone': criteria.schedule_timezone,
             'last_run': criteria.last_run.isoformat() if criteria.last_run else None
         })
     except Exception as e:
@@ -100,6 +104,10 @@ def update_search_criteria(criteria_id):
             criteria.schedule_day_of_week = data['schedule_day_of_week']
         if 'schedule_day_of_month' in data:
             criteria.schedule_day_of_month = data['schedule_day_of_month']
+        if 'schedule_interval_hours' in data:
+            criteria.schedule_interval_hours = data['schedule_interval_hours']
+        if 'schedule_timezone' in data:
+            criteria.schedule_timezone = data['schedule_timezone']
 
         db.session.commit()
 
@@ -153,6 +161,8 @@ def get_search_criterias():
             'schedule_minute': c.schedule_minute,
             'schedule_day_of_week': c.schedule_day_of_week,
             'schedule_day_of_month': c.schedule_day_of_month,
+            'schedule_interval_hours': c.schedule_interval_hours,
+            'schedule_timezone': c.schedule_timezone,
             'last_run': c.last_run.isoformat() if c.last_run else None
         } for c in criterias])
     except Exception as e:

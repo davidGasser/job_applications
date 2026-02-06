@@ -21,6 +21,7 @@ class SearchCriteria(db.Model):
     schedule_minute = db.Column(db.Integer, nullable=True, default=0)  # 0-59
     schedule_day_of_week = db.Column(db.Integer, nullable=True)  # 0-6 for weekly (Monday=0)
     schedule_day_of_month = db.Column(db.Integer, nullable=True)  # 1-31 for monthly
+    schedule_interval_hours = db.Column(db.Integer, nullable=True, default=24)  # Interval in hours between runs
     schedule_timezone = db.Column(db.String(50), nullable=False, default='UTC')  # IANA timezone (e.g., 'Europe/Berlin', 'America/New_York')
     last_run = db.Column(db.DateTime, nullable=True)
 
